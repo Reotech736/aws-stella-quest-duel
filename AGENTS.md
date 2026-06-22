@@ -76,9 +76,9 @@
 
 最初は以下の順番で進める。
 
-1. `plan.md` を作成する。
-2. MVP要件を整理する。
-3. ゲームルールを文章化する。
+1. `workspace/plans/` に全体 plan と個別 plan を追加する。
+2. ゲームルールを文章化する。
+3. MVP要件を整理する。
 4. DynamoDBのテーブル設計を整理する。
 5. API一覧を整理する。
 6. フロントエンドの画面構成を整理する。
@@ -88,7 +88,7 @@
 
 以下のファイルを優先して作成・更新する。
 
-- `plan.md`
+- `workspace/plans/`
 - `README.md`
 - 必要に応じて `docs/architecture.md`
 - 必要に応じて `docs/rules.md`
