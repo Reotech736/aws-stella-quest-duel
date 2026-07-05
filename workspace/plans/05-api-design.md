@@ -53,7 +53,7 @@ API GatewayのJWTオーソライザーで署名、発行者、有効期限、対
 
 トークンがない、無効、期限切れの場合はAPI Gatewayが `401 Unauthorized` を返します。LambdaではCognitoの認証処理を独自実装せず、検証済みクレームの用途確認だけを行います。
 
-対戦相手へ表示する名前にはCognitoの `preferred_username` を使用し、管理者によるアカウント作成時の必須項目とします。メールアドレス、Cognitoの `sub`、ログイン用ユーザー名は表示名として公開しません。
+対戦相手へ表示する名前には、Cognitoアクセストークンの `username` を使用します。管理者はアカウント作成時に、メールアドレスや本名ではなく、対戦相手へ公開してよい一意の表示名をCognitoユーザー名として設定します。Cognitoの `sub` とメールアドレスは表示しません。MVPでは表示名変更機能を提供しません。
 
 CORSプリフライトの `OPTIONS` はAPI Gatewayが処理し、JWT認証の対象外とします。
 
@@ -822,6 +822,7 @@ CloudWatch Logsの保持期間は14日とします。
 
 ## AWS公式資料
 
+- [Cognitoアクセストークンの構成](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-access-token.html)
 - [API Gateway HTTP APIのJWTオーソライザー](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html)
 - [API Gateway HTTP APIのCORS](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-cors.html)
 - [API Gateway HTTP APIのスロットリング](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-throttling.html)
