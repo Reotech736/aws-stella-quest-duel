@@ -5,10 +5,14 @@ import {
 import {
   DynamoDBDocumentClient,
   type GetCommand,
+  type PutCommand,
   type TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-export type SupportedDocumentCommand = GetCommand | TransactWriteCommand;
+export type SupportedDocumentCommand =
+  | GetCommand
+  | PutCommand
+  | TransactWriteCommand;
 
 export interface DocumentClientPort {
   send(command: SupportedDocumentCommand): Promise<unknown>;
