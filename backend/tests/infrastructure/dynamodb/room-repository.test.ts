@@ -51,6 +51,7 @@ function createWaitingRoom(): RoomItem {
     roomId: "A2B3C4",
     status: "WAITING",
     ownerUserId: "owner-user",
+    ownerDisplayName: "Owner",
     version: 1,
     createdAt,
     waitingExpiresAt,

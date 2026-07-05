@@ -42,7 +42,9 @@ export interface RoomItem extends BaseItem {
   readonly roomId: string;
   readonly status: RoomStatus;
   readonly ownerUserId: string;
+  readonly ownerDisplayName: string;
   readonly guestUserId?: string;
+  readonly guestDisplayName?: string;
   readonly gameId?: string;
   readonly version: number;
   readonly createdAt: string;
@@ -141,6 +143,7 @@ export interface RequestItem extends BaseItem {
   readonly scope: "USER" | "ROOM" | "GAME";
   readonly resultStatus: "SUCCEEDED" | "FAILED";
   readonly resultVersion?: number;
+  readonly resultResourceId?: string;
   readonly createdAt: string;
   readonly purgeAt: number;
 }

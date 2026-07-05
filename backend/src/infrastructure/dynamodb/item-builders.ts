@@ -62,6 +62,7 @@ export interface CreateRequestItemInput {
   readonly actorUserId: string;
   readonly resultStatus: "SUCCEEDED" | "FAILED";
   readonly resultVersion?: number;
+  readonly resultResourceId?: string;
   readonly createdAt: string;
   readonly purgeAt: number;
 }
@@ -100,6 +101,11 @@ export function createRequestItem(
       ? {}
       : {
           resultVersion: input.resultVersion,
+        }),
+    ...(input.resultResourceId === undefined
+      ? {}
+      : {
+          resultResourceId: input.resultResourceId,
         }),
     createdAt: input.createdAt,
     purgeAt: input.purgeAt,
