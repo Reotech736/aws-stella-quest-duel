@@ -17,17 +17,18 @@
 - APIキー、トークン、認証情報、個人情報、社内情報をコミットしない。
 - 判断に迷う場合は、実装前に方針を確認する。
 
-## 初期アーキテクチャ方針
+## アーキテクチャ方針
 
 当面は、以下の構成を前提とする。
 
-- フロントエンド: React または Next.js
+- フロントエンド: React + TypeScript + Vite
 - ホスティング: AWS Amplify Hosting
 - 認証: Amazon Cognito
 - API: Amazon API Gateway HTTP API
 - バックエンド: AWS Lambda
 - データベース: Amazon DynamoDB
 - ログ: Amazon CloudWatch Logs
+- IaC: AWS SAM
 
 ## ゲーム仕様の初期方針
 
