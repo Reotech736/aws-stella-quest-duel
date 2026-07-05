@@ -14,8 +14,9 @@ import type {
   GameEventItem,
   GameStateItem,
   RequestItem,
+  RoomItem,
 } from "./items";
-import { gameStateKey } from "./keys";
+import { activeContextKey, gameStateKey } from "./keys";
 
 export type ReadConsistency = "strong" | "eventual";
 
@@ -23,7 +24,13 @@ export interface SaveGameActionInput {
   readonly state: GameState;
   readonly expectedVersion: number;
   readonly event: GameEventItem;
-  readonly request: RequestItem;
+  readonly request?: RequestItem;
+  readonly completion?: {
+    readonly room: RoomItem;
+    readonly expectedRoomVersion: number;
+    readonly ownerUserId: string;
+    readonly guestUserId: string;
+  };
   readonly purgeAt?: number;
 }
 
@@ -59,17 +66,38 @@ function assertGameActionItems(input: SaveGameActionInput): void {
   }
 
   if (
-    input.request.scope !== "GAME" ||
-    input.request.PK !== `GAME#${input.state.gameId}`
+    input.request !== undefined &&
+    (input.request.scope !== "GAME" ||
+      input.request.PK !== `GAME#${input.state.gameId}`)
   ) {
     throw new Error("冪等性リクエストのスコープが対象ゲームと一致しません。");
   }
 
   if (
-    input.request.resultVersion !== undefined &&
+    input.request?.resultVersion !== undefined &&
     input.request.resultVersion !== input.state.version
   ) {
     throw new Error("冪等性リクエストの結果versionがゲーム状態と一致しません。");
+  }
+
+  if (input.completion !== undefined) {
+    const { room, ownerUserId, guestUserId } = input.completion;
+    const expectedCloseReason =
+      input.state.status === "ABANDONED"
+        ? "GAME_ABANDONED"
+        : "GAME_COMPLETED";
+    if (
+      input.state.status === "IN_PROGRESS" ||
+      room.status !== "CLOSED" ||
+      room.closeReason !== expectedCloseReason ||
+      room.gameId !== input.state.gameId ||
+      room.roomId !== input.state.roomId ||
+      room.version !== input.completion.expectedRoomVersion + 1 ||
+      input.state.players.OWNER.userId !== ownerUserId ||
+      input.state.players.GUEST.userId !== guestUserId
+    ) {
+      throw new Error("ゲーム終了時のルーム・参加者情報が不正です。");
+    }
   }
 }
 
@@ -112,11 +140,51 @@ export class GameStateRepository {
     const gameStateItem = toGameStateItem(input.state, input.purgeAt);
     const itemDoesNotExist =
       "attribute_not_exists(PK) AND attribute_not_exists(SK)";
+    const completionItems =
+      input.completion === undefined
+        ? []
+        : [
+            {
+              Put: {
+                TableName: this.#tableName,
+                Item: input.completion.room,
+                ConditionExpression:
+                  "#version = :expectedVersion AND #status = :inGame AND gameId = :gameId",
+                ExpressionAttributeNames: {
+                  "#version": "version",
+                  "#status": "status",
+                },
+                ExpressionAttributeValues: {
+                  ":expectedVersion":
+                    input.completion.expectedRoomVersion,
+                  ":inGame": "IN_GAME",
+                  ":gameId": input.state.gameId,
+                },
+              },
+            },
+            ...[
+              input.completion.ownerUserId,
+              input.completion.guestUserId,
+            ].map((userId) => ({
+              Delete: {
+                TableName: this.#tableName,
+                Key: activeContextKey(userId),
+                ConditionExpression: "gameId = :gameId",
+                ExpressionAttributeValues: {
+                  ":gameId": input.state.gameId,
+                },
+              },
+            })),
+          ];
 
     try {
       await this.#client.send(
         new TransactWriteCommand({
-          ClientRequestToken: input.request.requestId,
+          ...(input.request === undefined
+            ? {}
+            : {
+                ClientRequestToken: input.request.requestId,
+              }),
           TransactItems: [
             {
               Put: {
@@ -138,13 +206,18 @@ export class GameStateRepository {
                 ConditionExpression: itemDoesNotExist,
               },
             },
-            {
-              Put: {
-                TableName: this.#tableName,
-                Item: input.request,
-                ConditionExpression: itemDoesNotExist,
-              },
-            },
+            ...(input.request === undefined
+              ? []
+              : [
+                  {
+                    Put: {
+                      TableName: this.#tableName,
+                      Item: input.request,
+                      ConditionExpression: itemDoesNotExist,
+                    },
+                  },
+                ]),
+            ...completionItems,
           ],
         }),
       );

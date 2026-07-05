@@ -378,4 +378,82 @@ describe("RoomRepository", () => {
     ).rejects.toThrow("参加後のルーム状態が不正です。");
     expect(client.commands).toHaveLength(0);
   });
+
+  it("参加者退出でルームを待機中へ戻して所属を削除する", async () => {
+    const client = new FakeDocumentClient();
+    const repository = new RoomRepository(client, "TestTable");
+    const room: RoomItem = {
+      ...createWaitingRoom(),
+      status: "WAITING",
+      version: 3,
+    };
+    const request = createRequestItem({
+      scope: "ROOM",
+      scopeId: room.roomId,
+      requestId: "01970000-0000-7000-8000-000000000006",
+      requestHash: "sha256:leave",
+      actorUserId: "guest-user",
+      resultStatus: "SUCCEEDED",
+      resultVersion: 3,
+      createdAt: updatedAt,
+      purgeAt: 1_780_000_000,
+    });
+
+    await repository.leaveRoom({
+      room,
+      expectedVersion: 2,
+      actorUserId: "guest-user",
+      actorRole: "GUEST",
+      request,
+    });
+
+    const command = client.commands[0] as TransactWriteCommand;
+    expect(command.input.TransactItems).toHaveLength(3);
+    expect(command.input.TransactItems?.[0]?.Put).toMatchObject({
+      ConditionExpression:
+        "#version = :expectedVersion AND #status IN (:waiting, :ready)",
+    });
+    expect(command.input.TransactItems?.[1]?.Delete).toMatchObject({
+      Key: {
+        PK: "USER#guest-user",
+        SK: "ACTIVE_CONTEXT",
+      },
+      ConditionExpression: "roomId = :roomId AND #role = :role",
+    });
+  });
+
+  it("期限切れ時にルームと両プレイヤーの所属を更新する", async () => {
+    const client = new FakeDocumentClient();
+    const repository = new RoomRepository(client, "TestTable");
+    const room: RoomItem = {
+      ...createWaitingRoom(),
+      status: "EXPIRED",
+      guestUserId: "guest-user",
+      version: 3,
+      closedAt: updatedAt,
+      closeReason: "EXPIRED",
+      purgeAt: 1_780_000_000,
+    };
+
+    await repository.expireRoom({
+      room,
+      expectedVersion: 2,
+    });
+
+    const command = client.commands[0] as TransactWriteCommand;
+    expect(command.input.ClientRequestToken).toBeUndefined();
+    expect(command.input.TransactItems).toHaveLength(3);
+    expect(
+      command.input.TransactItems?.slice(1).map((item) => item.Delete?.Key),
+    ).toEqual([
+      {
+        PK: "USER#owner-user",
+        SK: "ACTIVE_CONTEXT",
+      },
+      {
+        PK: "USER#guest-user",
+        SK: "ACTIVE_CONTEXT",
+      },
+    ]);
+  });
 });

@@ -46,6 +46,19 @@ export interface StartRoomGameInput {
   readonly request: RequestItem;
 }
 
+export interface LeaveRoomInput {
+  readonly room: RoomItem;
+  readonly expectedVersion: number;
+  readonly actorUserId: string;
+  readonly actorRole: "OWNER" | "GUEST";
+  readonly request: RequestItem;
+}
+
+export interface ExpireRoomInput {
+  readonly room: RoomItem;
+  readonly expectedVersion: number;
+}
+
 export class RoomPersistenceConflictError extends Error {
   constructor(cause: unknown) {
     super("ルームの条件付き書き込みが競合しました。", {
@@ -175,6 +188,54 @@ function assertStartRoomGameInput(input: StartRoomGameInput): void {
       input.request.resultVersion !== input.room.version)
   ) {
     throw new Error("ゲーム開始リクエストがルーム状態と一致しません。");
+  }
+}
+
+function assertLeaveRoomInput(input: LeaveRoomInput): "OWNER" | "GUEST" {
+  const role = input.actorRole;
+  if (
+    (role === "OWNER" &&
+      input.actorUserId !== input.room.ownerUserId) ||
+    (role === "GUEST" &&
+      input.actorUserId === input.room.ownerUserId)
+  ) {
+    throw new Error("退出者のロールがルームと一致しません。");
+  }
+  if (input.room.version !== input.expectedVersion + 1) {
+    throw new Error("退出後のルームversionが不正です。");
+  }
+  if (
+    role === "OWNER" &&
+    (input.room.status !== "CLOSED" ||
+      input.room.closeReason !== "OWNER_LEFT")
+  ) {
+    throw new Error("作成者退出後のルーム状態が不正です。");
+  }
+  if (
+    role === "GUEST" &&
+    (input.room.status !== "WAITING" ||
+      input.room.guestUserId !== undefined ||
+      input.room.gameId !== undefined)
+  ) {
+    throw new Error("参加者退出後のルーム状態が不正です。");
+  }
+  if (
+    input.request.scope !== "ROOM" ||
+    input.request.PK !== `ROOM#${input.room.roomId}` ||
+    input.request.actorUserId !== input.actorUserId
+  ) {
+    throw new Error("退出リクエストのスコープがルームと一致しません。");
+  }
+  return role;
+}
+
+function assertExpireRoomInput(input: ExpireRoomInput): void {
+  if (
+    input.room.status !== "EXPIRED" ||
+    input.room.closeReason !== "EXPIRED" ||
+    input.room.version !== input.expectedVersion + 1
+  ) {
+    throw new Error("期限切れ後のルーム状態が不正です。");
   }
 }
 
@@ -343,6 +404,107 @@ export class RoomRepository {
     ]);
   }
 
+  async leaveRoom(input: LeaveRoomInput): Promise<void> {
+    const role = assertLeaveRoomInput(input);
+    const itemDoesNotExist =
+      "attribute_not_exists(PK) AND attribute_not_exists(SK)";
+    const contextDeletes = [
+      {
+        userId: input.actorUserId,
+        role,
+      },
+      ...(role === "OWNER" && input.room.guestUserId !== undefined
+        ? [
+            {
+              userId: input.room.guestUserId,
+              role: "GUEST" as const,
+            },
+          ]
+        : []),
+    ].map(({ userId, role: contextRole }) => ({
+      Delete: {
+        TableName: this.#tableName,
+        Key: activeContextKey(userId),
+        ConditionExpression: "roomId = :roomId AND #role = :role",
+        ExpressionAttributeNames: {
+          "#role": "role",
+        },
+        ExpressionAttributeValues: {
+          ":roomId": input.room.roomId,
+          ":role": contextRole,
+        },
+      },
+    }));
+
+    await this.#transact(input.request.requestId, [
+      {
+        Put: {
+          TableName: this.#tableName,
+          Item: input.room,
+          ConditionExpression:
+            "#version = :expectedVersion AND #status IN (:waiting, :ready)",
+          ExpressionAttributeNames: {
+            "#version": "version",
+            "#status": "status",
+          },
+          ExpressionAttributeValues: {
+            ":expectedVersion": input.expectedVersion,
+            ":waiting": "WAITING",
+            ":ready": "READY",
+          },
+        },
+      },
+      ...contextDeletes,
+      {
+        Put: {
+          TableName: this.#tableName,
+          Item: input.request,
+          ConditionExpression: itemDoesNotExist,
+        },
+      },
+    ]);
+  }
+
+  async expireRoom(input: ExpireRoomInput): Promise<void> {
+    assertExpireRoomInput(input);
+    const userIds = [
+      input.room.ownerUserId,
+      ...(input.room.guestUserId === undefined
+        ? []
+        : [input.room.guestUserId]),
+    ];
+
+    await this.#transact(undefined, [
+      {
+        Put: {
+          TableName: this.#tableName,
+          Item: input.room,
+          ConditionExpression:
+            "#version = :expectedVersion AND #status IN (:waiting, :ready)",
+          ExpressionAttributeNames: {
+            "#version": "version",
+            "#status": "status",
+          },
+          ExpressionAttributeValues: {
+            ":expectedVersion": input.expectedVersion,
+            ":waiting": "WAITING",
+            ":ready": "READY",
+          },
+        },
+      },
+      ...userIds.map((userId) => ({
+        Delete: {
+          TableName: this.#tableName,
+          Key: activeContextKey(userId),
+          ConditionExpression: "roomId = :roomId",
+          ExpressionAttributeValues: {
+            ":roomId": input.room.roomId,
+          },
+        },
+      })),
+    ]);
+  }
+
   async #getItem<T extends { readonly entityType: string }>(
     key: { readonly PK: string; readonly SK: string },
     entityType: T["entityType"],
@@ -365,7 +527,7 @@ export class RoomRepository {
   }
 
   async #transact(
-    requestId: string,
+    requestId: string | undefined,
     transactItems: NonNullable<
       ConstructorParameters<typeof TransactWriteCommand>[0]["TransactItems"]
     >,
@@ -373,7 +535,11 @@ export class RoomRepository {
     try {
       await this.#client.send(
         new TransactWriteCommand({
-          ClientRequestToken: requestId,
+          ...(requestId === undefined
+            ? {}
+            : {
+                ClientRequestToken: requestId,
+              }),
           TransactItems: transactItems,
         }),
       );

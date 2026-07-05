@@ -5,6 +5,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { initializeGame } from "../../../src/domain/game/initialize-game";
+import { resignGame } from "../../../src/domain/game/game-end";
 import type {
   DocumentClientPort,
   SupportedDocumentCommand,
@@ -200,5 +201,91 @@ describe("GameStateRepository", () => {
       }),
     ).rejects.toThrow("イベントのgameIdがゲーム状態と一致しません。");
     expect(client.commands).toHaveLength(0);
+  });
+
+  it("ゲーム終了時にルームを閉じて両プレイヤーの所属を削除する", async () => {
+    const client = new FakeDocumentClient();
+    const repository = new GameStateRepository(client, "TestTable");
+    const input = createSaveInput();
+    const ended = resignGame({
+      state: {
+        ...input.state,
+        version: 1,
+      },
+      actor: "OWNER",
+      actionAt: "2026-07-05T12:02:00.000Z",
+    });
+
+    await repository.saveAction({
+      ...input,
+      state: ended,
+      event: createGameEventItem({
+        gameId: ended.gameId,
+        eventId: "event-ended",
+        seq: 1,
+        actorUserId: "owner-user",
+        actionType: "GAME_ENDED",
+        payload: {
+          version: ended.version,
+          endReason: "RESIGNATION",
+        },
+        createdAt: "2026-07-05T12:02:00.000Z",
+        purgeAt: 1_783_256_400,
+      }),
+      request: createRequestItem({
+        scope: "GAME",
+        scopeId: ended.gameId,
+        requestId: "01970000-0000-7000-8000-000000000009",
+        requestHash: "sha256:end",
+        actorUserId: "owner-user",
+        resultStatus: "SUCCEEDED",
+        resultVersion: ended.version,
+        createdAt: "2026-07-05T12:02:00.000Z",
+        purgeAt: 1_780_000_000,
+      }),
+      completion: {
+        room: {
+          PK: "ROOM#A2B3C4",
+          SK: "META",
+          entityType: "ROOM",
+          roomId: "A2B3C4",
+          status: "CLOSED",
+          ownerUserId: "owner-user",
+          guestUserId: "guest-user",
+          gameId: ended.gameId,
+          version: 3,
+          createdAt: "2026-07-05T11:00:00.000Z",
+          waitingExpiresAt: "2026-07-06T11:00:00.000Z",
+          closedAt: "2026-07-05T12:02:00.000Z",
+          closeReason: "GAME_COMPLETED",
+        },
+        expectedRoomVersion: 2,
+        ownerUserId: "owner-user",
+        guestUserId: "guest-user",
+      },
+    });
+
+    const command = client.commands[0] as TransactWriteCommand;
+    expect(command.input.TransactItems).toHaveLength(6);
+    expect(command.input.TransactItems?.[3]?.Put).toMatchObject({
+      ConditionExpression:
+        "#version = :expectedVersion AND #status = :inGame AND gameId = :gameId",
+      Item: {
+        entityType: "ROOM",
+        status: "CLOSED",
+      },
+    });
+    expect(
+      command.input.TransactItems?.slice(4).map((item) => item.Delete?.Key),
+    ).toEqual([
+      {
+        PK: "USER#owner-user",
+        SK: "ACTIVE_CONTEXT",
+      },
+      {
+        PK: "USER#guest-user",
+        SK: "ACTIVE_CONTEXT",
+      },
+    ]);
   });
 });
