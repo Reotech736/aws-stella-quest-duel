@@ -8,7 +8,10 @@ import type { AuthenticatedUser } from "../application/context-room-service";
 import { ApplicationError } from "../application/errors";
 import { GameService } from "../application/game-service";
 import { createDocumentClient } from "../infrastructure/dynamodb/client";
-import { GameStateRepository } from "../infrastructure/dynamodb/game-state-repository";
+import {
+  DynamoPersistenceConflictError,
+  GameStateRepository,
+} from "../infrastructure/dynamodb/game-state-repository";
 import { RequestRepository } from "../infrastructure/dynamodb/request-repository";
 import { RoomRepository } from "../infrastructure/dynamodb/room-repository";
 import { createGameView } from "../presentation/game-view";
@@ -60,6 +63,12 @@ export function createGameQueryHandler(
       const known =
         error instanceof ApplicationError
           ? error
+          : error instanceof DynamoPersistenceConflictError
+            ? new ApplicationError(
+                "VERSION_CONFLICT",
+                "ゲーム状態が更新されています。",
+                409,
+              )
           : new ApplicationError(
               "INTERNAL_ERROR",
               "サーバー内部でエラーが発生しました。",

@@ -14,19 +14,21 @@ import {
 import { ApplicationError } from "../application/errors";
 import { createDocumentClient } from "../infrastructure/dynamodb/client";
 import { GameStateRepository } from "../infrastructure/dynamodb/game-state-repository";
-import { JoinGuardRepository } from "../infrastructure/dynamodb/join-guard-repository";
+import {
+  JoinGuardPersistenceConflictError,
+  JoinGuardRepository,
+} from "../infrastructure/dynamodb/join-guard-repository";
 import type { RoomItem } from "../infrastructure/dynamodb/items";
 import { RequestRepository } from "../infrastructure/dynamodb/request-repository";
-import { RoomRepository } from "../infrastructure/dynamodb/room-repository";
+import {
+  RoomPersistenceConflictError,
+  RoomRepository,
+} from "../infrastructure/dynamodb/room-repository";
 import { createGameView } from "../presentation/game-view";
 import { jsonResponse } from "../shared/http-response";
 
 const joinSchema = z.object({
-  roomId: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/),
+  roomId: z.string().trim().toUpperCase().min(1).max(64),
 });
 const leaveSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -133,6 +135,18 @@ function errorResponse(
   const applicationError =
     error instanceof ApplicationError
       ? error
+      : error instanceof RoomPersistenceConflictError
+        ? new ApplicationError(
+            "VERSION_CONFLICT",
+            "ルーム状態が更新されています。",
+            409,
+          )
+        : error instanceof JoinGuardPersistenceConflictError
+          ? new ApplicationError(
+              "SERVICE_UNAVAILABLE",
+              "参加試行状態が更新されました。再度お試しください。",
+              503,
+            )
       : error instanceof ZodError ||
           error instanceof SyntaxError
         ? new ApplicationError(
@@ -140,7 +154,7 @@ function errorResponse(
             "リクエスト内容が不正です。",
             400,
           )
-        : new ApplicationError(
+          : new ApplicationError(
             "INTERNAL_ERROR",
             "サーバー内部でエラーが発生しました。",
             500,

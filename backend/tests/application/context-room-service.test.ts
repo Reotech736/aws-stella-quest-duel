@@ -248,6 +248,24 @@ describe("ContextRoomService", () => {
     });
   });
 
+  it("形式不正のルームIDもJoin Guardへ記録する", async () => {
+    const store = new MemoryContextRoomStore();
+    const service = createService(store);
+
+    await expect(
+      service.joinRoom(
+        guest,
+        "I00000",
+        "request-invalid",
+        "hash:invalid",
+      ),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+    expect(store.guards.get(guest.userId)?.failedCount).toBe(1);
+  });
+
   it("異なる内容で冪等性キーを再利用すると拒否する", async () => {
     const store = new MemoryContextRoomStore();
     const service = createService(store);

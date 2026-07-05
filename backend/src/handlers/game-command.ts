@@ -15,13 +15,19 @@ import {
 } from "../application/game-service";
 import type { CardId } from "../domain/game/card";
 import { createDocumentClient } from "../infrastructure/dynamodb/client";
-import { GameStateRepository } from "../infrastructure/dynamodb/game-state-repository";
+import {
+  DynamoPersistenceConflictError,
+  GameStateRepository,
+} from "../infrastructure/dynamodb/game-state-repository";
 import { RequestRepository } from "../infrastructure/dynamodb/request-repository";
 import { RoomRepository } from "../infrastructure/dynamodb/room-repository";
 import { createGameView } from "../presentation/game-view";
 import { jsonResponse } from "../shared/http-response";
 
-const cardId = z.string().min(2).max(4);
+const cardId = z
+  .string()
+  .regex(/^(?:[RYBG][1-6][ab]|X[1-6])$/)
+  .transform((value) => value as CardId);
 const commandSchema = z.object({
   expectedVersion: z.number().int().positive(),
   command: z.discriminatedUnion("type", [
@@ -117,7 +123,7 @@ export function createGameCommandHandler(
           user,
           gameId,
           body.expectedVersion,
-          body.command as GameCommand & { cardId?: CardId },
+          body.command as GameCommand,
           requestId,
           hash(event.routeKey, body),
         );
@@ -152,6 +158,12 @@ export function createGameCommandHandler(
       const known =
         error instanceof ApplicationError
           ? error
+          : error instanceof DynamoPersistenceConflictError
+            ? new ApplicationError(
+                "VERSION_CONFLICT",
+                "ゲーム状態が更新されています。",
+                409,
+              )
           : error instanceof ZodError ||
               error instanceof SyntaxError
             ? new ApplicationError(

@@ -2,6 +2,7 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ContextRoomService } from "../../src/application/context-room-service";
+import { ApplicationError } from "../../src/application/errors";
 import { createContextRoomHandler } from "../../src/handlers/context-room";
 import type { RoomItem } from "../../src/infrastructure/dynamodb/items";
 
@@ -102,9 +103,15 @@ describe("context-room handler", () => {
   });
 
   it("不正な参加用ルームIDを400にする", async () => {
-    const handler = createContextRoomHandler(
-      {} as unknown as ContextRoomService,
-    );
+    const handler = createContextRoomHandler({
+      joinRoom: vi.fn().mockRejectedValue(
+        new ApplicationError(
+          "VALIDATION_ERROR",
+          "ルームIDの形式が不正です。",
+          400,
+        ),
+      ),
+    } as unknown as ContextRoomService);
     const response = await handler(
       event("POST /v1/rooms/join", {
         headers: {

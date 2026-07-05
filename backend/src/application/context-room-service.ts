@@ -207,47 +207,73 @@ export class ContextRoomService {
 
     const now = this.dependencies.now();
     const nowIso = now.toISOString();
-    const roomId = generateRoomId(this.dependencies.random);
-    const room: RoomItem = {
-      ...roomKey(roomId),
-      entityType: "ROOM",
-      roomId,
-      status: "WAITING",
-      ownerUserId: user.userId,
-      ownerDisplayName: user.displayName,
-      version: 1,
-      createdAt: nowIso,
-      waitingExpiresAt: addMilliseconds(now, DAY_MILLISECONDS),
-    };
-    const ownerContext: ActiveContextItem = {
-      ...activeContextKey(user.userId),
-      entityType: "ACTIVE_CONTEXT",
-      userId: user.userId,
-      roomId,
-      role: "OWNER",
-      contextStatus: "WAITING",
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    };
-    const request = createRequestItem({
-      scope: "USER",
-      scopeId: user.userId,
-      requestId,
-      requestHash,
-      actorUserId: user.userId,
-      resultStatus: "SUCCEEDED",
-      resultVersion: room.version,
-      resultResourceId: roomId,
-      createdAt: nowIso,
-      purgeAt: epochSeconds(now, DAY_MILLISECONDS),
-    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const roomId = generateRoomId(this.dependencies.random);
+      const room: RoomItem = {
+        ...roomKey(roomId),
+        entityType: "ROOM",
+        roomId,
+        status: "WAITING",
+        ownerUserId: user.userId,
+        ownerDisplayName: user.displayName,
+        version: 1,
+        createdAt: nowIso,
+        waitingExpiresAt: addMilliseconds(now, DAY_MILLISECONDS),
+      };
+      const ownerContext: ActiveContextItem = {
+        ...activeContextKey(user.userId),
+        entityType: "ACTIVE_CONTEXT",
+        userId: user.userId,
+        roomId,
+        role: "OWNER",
+        contextStatus: "WAITING",
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      const request = createRequestItem({
+        scope: "USER",
+        scopeId: user.userId,
+        requestId,
+        requestHash,
+        actorUserId: user.userId,
+        resultStatus: "SUCCEEDED",
+        resultVersion: room.version,
+        resultResourceId: roomId,
+        createdAt: nowIso,
+        purgeAt: epochSeconds(now, DAY_MILLISECONDS),
+      });
 
-    await this.dependencies.rooms.createRoom({
-      room,
-      ownerContext,
-      request,
-    });
-    return { room, replay: false };
+      try {
+        await this.dependencies.rooms.createRoom({
+          room,
+          ownerContext,
+          request,
+        });
+        return { room, replay: false };
+      } catch (error) {
+        if (
+          (await this.dependencies.rooms.getActiveContext(user.userId)) !==
+          null
+        ) {
+          throw new ApplicationError(
+            "ACTIVE_CONTEXT_EXISTS",
+            "すでに待機中または進行中の所属があります。",
+            409,
+          );
+        }
+        if (
+          (await this.dependencies.rooms.getRoom(roomId, "strong")) ===
+          null
+        ) {
+          throw error;
+        }
+      }
+    }
+    throw new ApplicationError(
+      "SERVICE_UNAVAILABLE",
+      "ルームIDを確保できませんでした。",
+      503,
+    );
   }
 
   async joinRoom(
@@ -265,6 +291,14 @@ export class ContextRoomService {
         "JOIN_ATTEMPT_LIMITED",
         "ルームに参加できませんでした。",
         429,
+      );
+    }
+    if (!/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(roomId)) {
+      await this.#recordJoinFailure(user.userId, guard, nowIso);
+      throw new ApplicationError(
+        "VALIDATION_ERROR",
+        "ルームIDの形式が不正です。",
+        400,
       );
     }
 
