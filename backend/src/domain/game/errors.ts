@@ -4,7 +4,8 @@ export type GameDomainErrorCode =
   | "ACTION_NOT_ALLOWED"
   | "CARD_NOT_IN_HAND"
   | "CARD_NOT_PLAYABLE"
-  | "DRAW_NOT_ALLOWED";
+  | "DRAW_NOT_ALLOWED"
+  | "INVALID_CHOICE";
 
 export class GameDomainError extends Error {
   readonly code: GameDomainErrorCode;
