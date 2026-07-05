@@ -1,0 +1,10 @@
+version = 0.1
+
+[dev.validate.parameters]
+template_file = "template.yaml"
+lint = true
+
+[dev.build.parameters]
+template_file = "template.yaml"
+cached = true
+parallel = true
