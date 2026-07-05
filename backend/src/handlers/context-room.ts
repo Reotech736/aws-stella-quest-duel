@@ -12,6 +12,7 @@ import {
   type AuthenticatedUser,
 } from "../application/context-room-service";
 import { ApplicationError } from "../application/errors";
+import { GameService } from "../application/game-service";
 import { createDocumentClient } from "../infrastructure/dynamodb/client";
 import { GameStateRepository } from "../infrastructure/dynamodb/game-state-repository";
 import {
@@ -173,6 +174,7 @@ function errorResponse(
 
 export function createContextRoomHandler(
   service: ContextRoomService,
+  games?: GameService,
 ): ContextRoomHandler {
   return async (event) => {
     try {
@@ -182,6 +184,14 @@ export function createContextRoomHandler(
 
       if (routeKey === "GET /v1/me/context") {
         const result = await service.getContext(user);
+        if (result?.context.gameId && games) {
+          const game = await games.getGame(user, result.context.gameId);
+          if (game.state.status !== "IN_PROGRESS") {
+            return success(event, 200, {
+              context: null,
+            });
+          }
+        }
         return success(event, 200, {
           context:
             result === null
@@ -289,6 +299,7 @@ export function createContextRoomHandler(
 }
 
 let service: ContextRoomService | undefined;
+let gameService: GameService | undefined;
 
 function runtimeService(): ContextRoomService {
   if (service !== undefined) {
@@ -299,11 +310,22 @@ function runtimeService(): ContextRoomService {
     throw new Error("TABLE_NAMEが設定されていません。");
   }
   const client = createDocumentClient();
+  const rooms = new RoomRepository(client, tableName);
+  const requests = new RequestRepository(client, tableName);
+  const games = new GameStateRepository(client, tableName);
   service = new ContextRoomService({
-    rooms: new RoomRepository(client, tableName),
-    requests: new RequestRepository(client, tableName),
+    rooms,
+    requests,
     joinGuards: new JoinGuardRepository(client, tableName),
-    games: new GameStateRepository(client, tableName),
+    games,
+    now: () => new Date(),
+    createId: uuidv7,
+    random: Math.random,
+  });
+  gameService = new GameService({
+    games,
+    rooms,
+    requests,
     now: () => new Date(),
     createId: uuidv7,
     random: Math.random,
@@ -313,7 +335,8 @@ function runtimeService(): ContextRoomService {
 
 export const handler: ContextRoomHandler = async (event) => {
   try {
-    return await createContextRoomHandler(runtimeService())(event);
+    const contextService = runtimeService();
+    return await createContextRoomHandler(contextService, gameService)(event);
   } catch (error) {
     return errorResponse(event, error);
   }
