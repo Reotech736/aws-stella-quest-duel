@@ -33,8 +33,8 @@
 - フェーズ6「実装準備」は完了
 - 現在はフェーズ7「実装開始」を進行中
 - React + Viteのフロントエンド土台と、TypeScript Lambdaのバックエンド土台を作成した
-- DynamoDBアクセスでは、単一テーブルキー、全アイテム型、ゲーム状態の保存・復元変換まで実装した
-- 次はDocumentClient、整合性を指定した取得、条件付き更新、トランザクションを実装する
+- DynamoDBアクセスでは、DocumentClient、ゲーム状態取得、楽観的ロック、イベント・冪等性記録を含むトランザクションまで実装した
+- 次はRoom、Active Context、Join GuardのRepositoryと参加・開始時の更新フローを実装する
 
 ## フェーズ詳細
 
