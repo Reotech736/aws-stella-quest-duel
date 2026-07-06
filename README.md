@@ -150,6 +150,7 @@ SAM管理リソースには、`Project=stella-quest-duel`、`Environment=dev`、
 - `workspace/plans/05-api-design.md`
 - `workspace/plans/06-screen-flow.md`
 - `workspace/plans/07-implementation-readiness.md`
+- `workspace/plans/08-aws-deployment.md`
 - `docs/architecture.md`（必要に応じて作成）
 - `docs/rules.md`（必要に応じて作成）
 
