@@ -136,6 +136,8 @@ PATH="$(pwd)/../backend/node_modules/.bin:$PATH" \
 
 SAMビルドは既存のバックエンド開発依存に含まれるesbuildを使用します。上記コマンドはテンプレート変換とLambdaバンドルだけを行い、AWSリソースを作成しません。
 
+SAM管理リソースには、`Project=stella-quest-duel`、`Environment=dev`、`ManagedBy=aws-sam`を基本タグとして付与します。デプロイ後、`Project`と`Environment`をコスト配分タグとして有効化します。
+
 フロントエンドを実APIへ接続する場合は、`frontend/.env.example` のキーを参照してローカルの `.env` へ公開設定を入力します。認証情報や秘密鍵は保存しません。
 
 ## ドキュメント
