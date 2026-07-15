@@ -160,6 +160,23 @@ function errorResponse(
             "サーバー内部でエラーが発生しました。",
             500,
           );
+  if (applicationError.code === "INTERNAL_ERROR") {
+    const unexpectedError =
+      error instanceof Error
+        ? {
+            name: error.name,
+            message: error.message,
+          }
+        : {
+            name: typeof error,
+            message: String(error),
+          };
+    console.error("Unexpected context-room error", {
+      traceId: event.requestContext.requestId,
+      routeKey: event.routeKey,
+      error: unexpectedError,
+    });
+  }
   return jsonResponse(applicationError.statusCode, {
     error: {
       code: applicationError.code,

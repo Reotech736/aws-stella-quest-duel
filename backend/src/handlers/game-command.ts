@@ -176,6 +176,23 @@ export function createGameCommandHandler(
                 "サーバー内部でエラーが発生しました。",
                 500,
               );
+      if (known.code === "INTERNAL_ERROR") {
+        const unexpectedError =
+          error instanceof Error
+            ? {
+                name: error.name,
+                message: error.message,
+              }
+            : {
+                name: typeof error,
+                message: String(error),
+              };
+        console.error("Unexpected game-command error", {
+          traceId: event.requestContext.requestId,
+          routeKey: event.routeKey,
+          error: unexpectedError,
+        });
+      }
       return jsonResponse(known.statusCode, {
         error: {
           code: known.code,

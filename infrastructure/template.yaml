@@ -147,6 +147,7 @@ Resources:
               Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
+                - dynamodb:DeleteItem
                 - dynamodb:TransactWriteItems
               Resource: !GetAtt GameTable.Arn
       Events:
@@ -197,12 +198,12 @@ Resources:
       BuildProperties:
         EntryPoints:
           - src/handlers/context-room.ts
-        Format: esm
+        Format: cjs
         Minify: true
         Sourcemap: false
         Target: es2024
         OutExtension:
-          - .js=.mjs
+          - .js=.cjs
 
   GameQueryFunction:
     Type: AWS::Serverless::Function
@@ -215,7 +216,6 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
-                - dynamodb:TransactWriteItems
               Resource: !GetAtt GameTable.Arn
       Events:
         GetGame:
@@ -232,12 +232,12 @@ Resources:
       BuildProperties:
         EntryPoints:
           - src/handlers/game-query.ts
-        Format: esm
+        Format: cjs
         Minify: true
         Sourcemap: false
         Target: es2024
         OutExtension:
-          - .js=.mjs
+          - .js=.cjs
 
   GameCommandFunction:
     Type: AWS::Serverless::Function
@@ -250,6 +250,8 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
                 - dynamodb:TransactWriteItems
               Resource: !GetAtt GameTable.Arn
       Events:
@@ -270,12 +272,12 @@ Resources:
       BuildProperties:
         EntryPoints:
           - src/handlers/game-command.ts
-        Format: esm
+        Format: cjs
         Minify: true
         Sourcemap: false
         Target: es2024
         OutExtension:
-          - .js=.mjs
+          - .js=.cjs
 
   ContextRoomLogGroup:
     Type: AWS::Logs::LogGroup
