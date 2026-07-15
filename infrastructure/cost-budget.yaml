@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stella Quest Duel project monthly cost budget
+
+Parameters:
+  BudgetAlertEmail:
+    Type: String
+    NoEcho: true
+    Description: Budget通知を受信するメールアドレス。実値はGitへ保存しない。
+
+Resources:
+  ProjectMonthlyCostBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: stella-quest-duel-monthly
+        BudgetLimit:
+          Amount: 5
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        FilterExpression:
+          Tags:
+            Key: Project
+            Values:
+              - stella-quest-duel
+        Metrics:
+          - UnblendedCost
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetAlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetAlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetAlertEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetAlertEmail
+      ResourceTags:
+        - Key: Project
+          Value: stella-quest-duel
+        - Key: ManagedBy
+          Value: cloudformation
+
+Outputs:
+  BudgetName:
+    Description: Stella Quest Duel専用の月額Budget名
+    Value: !Ref ProjectMonthlyCostBudget
