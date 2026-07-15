@@ -58,7 +58,13 @@ export interface GameView {
   readonly roomId: string;
   readonly status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED";
   readonly version: number;
-  readonly phase: string;
+  readonly phase:
+    | "PLAYER_TURN_BEFORE_PLAY"
+    | "PLAYER_TURN_AFTER_PLAY"
+    | "AWAITING_COLLECTION_CHOICE"
+    | "AWAITING_DISCARD_TOP_CHOICE"
+    | "COMPLETED"
+    | "ABANDONED";
   readonly viewerPlayerId: "OWNER" | "GUEST";
   readonly currentActorPlayerId: "OWNER" | "GUEST";
   readonly startPlayerId: "OWNER" | "GUEST";

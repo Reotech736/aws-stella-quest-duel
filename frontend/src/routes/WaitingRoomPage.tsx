@@ -5,6 +5,10 @@ import { api, ApiError } from "../api/client";
 import type { RoomView } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 
+function isClosedRoom(room: RoomView): boolean {
+  return room.status === "CLOSED" || room.status === "EXPIRED";
+}
+
 export function WaitingRoomPage() {
   const { roomId = "" } = useParams();
   const auth = useAuth();
@@ -20,7 +24,9 @@ export function WaitingRoomPage() {
       const token = await auth.accessToken();
       const response = await api.room(token, roomId);
       setRoom(response.data.room);
-      if (response.data.room.gameId) {
+      if (isClosedRoom(response.data.room)) {
+        navigate("/", { replace: true });
+      } else if (response.data.room.gameId) {
         navigate(`/games/${response.data.room.gameId}`, { replace: true });
       }
     } catch (cause) {
@@ -46,7 +52,11 @@ export function WaitingRoomPage() {
       await api.leaveRoom(token, room, crypto.randomUUID());
       navigate("/", { replace: true });
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "退出できませんでした。");
+      if (cause instanceof ApiError && cause.code === "VERSION_CONFLICT") {
+        await refresh();
+      } else {
+        setError(cause instanceof ApiError ? cause.message : "退出できませんでした。");
+      }
     } finally {
       setBusy(false);
     }

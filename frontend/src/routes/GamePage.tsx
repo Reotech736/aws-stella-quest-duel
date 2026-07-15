@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import type { CardView, GameView } from "../api/types";
@@ -14,23 +14,88 @@ function Card({
   readonly disabled?: boolean;
   readonly onClick?: () => void;
 }) {
-  return (
+  const content = (
+    <>
+      <span>{card.color}</span>
+      <strong>{card.number ?? (card.color === "REST" ? "休" : "?")}</strong>
+    </>
+  );
+  const label = `${card.color} ${card.number ?? (card.color === "REST" ? "休憩" : "不明")}`;
+
+  return onClick ? (
     <button
       className={`game-card color-${card.color.toLowerCase()}`}
       disabled={disabled}
+      aria-label={label}
       onClick={onClick}
     >
-      <span>{card.color}</span>
-      <strong>{card.number ?? (card.color === "REST" ? "休" : "?")}</strong>
+      {content}
     </button>
+  ) : (
+    <div
+      className={`game-card color-${card.color.toLowerCase()}`}
+      role="img"
+      aria-label={label}
+    >
+      {content}
+    </div>
   );
+}
+
+function instruction(game: GameView): string {
+  if (game.status !== "IN_PROGRESS") {
+    return "ゲームは終了しました。結果を確認してください。";
+  }
+
+  const isViewerTurn =
+    game.currentActorPlayerId === game.viewerPlayerId;
+  if (!isViewerTurn) {
+    if (game.phase === "AWAITING_COLLECTION_CHOICE") {
+      return "相手が獲得するカードを選んでいます。";
+    }
+    if (game.phase === "AWAITING_DISCARD_TOP_CHOICE") {
+      return "相手が次の捨て札を選んでいます。";
+    }
+    return "相手の操作を待っています。";
+  }
+
+  switch (game.phase) {
+    case "PLAYER_TURN_BEFORE_PLAY":
+      return "手札からプレイするカードを選んでください。";
+    case "PLAYER_TURN_AFTER_PLAY":
+      return "必要なら星明りでカードを引き、手番終了を押してください。";
+    case "AWAITING_COLLECTION_CHOICE":
+      return "場のカードから獲得する感情カードを選んでください。";
+    case "AWAITING_DISCARD_TOP_CHOICE":
+      return "残りのカードから次の捨て札トップを選んでください。";
+    case "COMPLETED":
+    case "ABANDONED":
+      return "ゲームは終了しました。結果を確認してください。";
+  }
+}
+
+function resultReason(reason: string): string {
+  switch (reason) {
+    case "ENLIGHTENMENT":
+      return "1から6の感情を集めました";
+    case "LIGHT_LOST":
+      return "すべての星明りを失いました";
+    case "RESIGNATION":
+      return "投了しました";
+    case "ABANDONED":
+      return "長時間操作がなく終了しました";
+    default:
+      return reason;
+  }
 }
 
 export function GamePage() {
   const { gameId = "" } = useParams();
+  const navigate = useNavigate();
   const auth = useAuth();
   const [game, setGame] = useState<GameView | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -53,7 +118,9 @@ export function GamePage() {
     if (!game || busy) return;
     setBusy(true);
     setError("");
+    setNotice("");
     try {
+      const previousViewer = game.players.find((player) => player.isViewer);
       const token = await auth.accessToken();
       const response = await api.command(
         token,
@@ -61,7 +128,28 @@ export function GamePage() {
         value,
         crypto.randomUUID(),
       );
-      setGame(response.data.game);
+      const nextGame = response.data.game;
+      const nextViewer = nextGame.players.find((player) => player.isViewer);
+      const messages: string[] = [];
+      if (
+        value.type === "PLAY_CARD" &&
+        previousViewer?.handCount === 1 &&
+        nextViewer !== undefined &&
+        nextViewer.handCount > 0
+      ) {
+        messages.push(
+          `手札が尽きたため、${nextViewer.handCount}枚補充されました。`,
+        );
+      }
+      if (
+        previousViewer !== undefined &&
+        nextViewer !== undefined &&
+        nextViewer.collection.length > previousViewer.collection.length
+      ) {
+        messages.push("感情カードを獲得しました。");
+      }
+      setNotice(messages.join(" "));
+      setGame(nextGame);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : "操作を実行できませんでした。");
       await refresh();
@@ -107,6 +195,10 @@ export function GamePage() {
             : "相手の手番"}
         </div>
       </header>
+      <section className="game-instruction" aria-live="polite">
+        <strong>{instruction(game)}</strong>
+        <small>現在のフェーズ: {game.phase}</small>
+      </section>
       <section className="player-summary opponent">
         <strong>{opponent?.displayName}</strong>
         <span>手札 {opponent?.handCount}</span>
@@ -143,7 +235,36 @@ export function GamePage() {
             </div>
           ))}
         </div>
-        <p>捨て札: {game.discardTop?.color ?? "なし"}</p>
+        <div className="discard-pile">
+          <p>捨て札</p>
+          {game.discardTop ? (
+            <Card card={game.discardTop} disabled />
+          ) : (
+            <span>なし</span>
+          )}
+        </div>
+      </section>
+      <section className="collections-panel panel" aria-label="獲得カード">
+        <h2>獲得カード</h2>
+        <div className="collection-grid">
+          {game.players.map((player) => (
+            <section key={player.playerId}>
+              <h3>
+                {player.displayName}
+                {player.isViewer ? "（あなた）" : ""}
+              </h3>
+              <div className="collection-cards">
+                {player.collection.length === 0 ? (
+                  <span className="empty-collection">まだありません</span>
+                ) : (
+                  player.collection.map((card, index) => (
+                    <Card key={card.cardId ?? index} card={card} />
+                  ))
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
       </section>
       <section className="controls panel">
         <div className="button-row">
@@ -169,6 +290,7 @@ export function GamePage() {
             投了
           </button>
         </div>
+        {notice && <p className="notice-message">{notice}</p>}
         {error && <p className="error-message">{error}</p>}
       </section>
       <section className="hand-area">
@@ -206,7 +328,13 @@ export function GamePage() {
                   ? "勝者なし"
                   : "敗北"}
             </h2>
-            <p>終了理由: {game.result.endReason}</p>
+            <p>終了理由: {resultReason(game.result.endReason)}</p>
+            <button
+              className="primary-button"
+              onClick={() => navigate("/", { replace: true })}
+            >
+              ロビーへ戻る
+            </button>
           </section>
         </div>
       )}
