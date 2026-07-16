@@ -42,14 +42,14 @@ const colorCodes: Readonly<Record<EmotionColor, EmotionColorCode>> = {
 
 function gemCountFor(number: EmotionNumber): 1 | 2 | 3 {
   if (number <= 2) {
-    return 1;
+    return 3;
   }
 
   if (number <= 4) {
     return 2;
   }
 
-  return 3;
+  return 1;
 }
 
 export function createCardSet(): Card[] {

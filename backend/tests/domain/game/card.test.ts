@@ -51,12 +51,12 @@ describe("createCardSet", () => {
   });
 
   it.each([
-    ["R1a", 1],
-    ["Y2b", 1],
+    ["R1a", 3],
+    ["Y2b", 3],
     ["B3a", 2],
     ["G4b", 2],
-    ["R5a", 3],
-    ["Y6b", 3],
+    ["R5a", 1],
+    ["Y6b", 1],
   ] as const)("%sの宝石数を%s個とする", (cardId, expectedGemCount) => {
     const card = getCard(cardId);
 

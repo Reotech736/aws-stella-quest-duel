@@ -243,31 +243,50 @@ describe("selectCollection", () => {
       actor: "OWNER",
       candidateCardIds: ["B5a", "B2a"],
     });
-  });
-
-  it("同じ数字を収集すると宝石数と同じ光面を失う", () => {
-    const state = createFinalTurnState({
-      collections: {
-        OWNER: ["R5b"],
-        GUEST: [],
-      },
-    });
-    const pendingChoice = endTurn(state);
-
-    const result = chooseCollection(pendingChoice, "B5a");
-
-    expect(result.collections.OWNER).toEqual(["R5b", "B5a"]);
     expect(result.starlightTokens.OWNER).toEqual({
-      light: 2,
-      dark: 3,
+      light: 5,
+      dark: 0,
     });
-    expect(result.status).toBe("IN_PROGRESS");
   });
+
+  it.each([
+    [1, 3, "R1b", "B1a"],
+    [2, 3, "R2b", "B2a"],
+    [3, 2, "R3b", "B3a"],
+    [4, 2, "R4b", "B4a"],
+    [5, 1, "R5b", "B5a"],
+    [6, 1, "R6b", "B6a"],
+  ] as const)(
+    "数字%sを重複収集すると光面を%s枚失う",
+    (_number, penalty, collectedCardId, candidateCardId) => {
+      const state = createFinalTurnState({
+        playedCards: playedCards(candidateCardId, "X1", "X2"),
+        collections: {
+          OWNER: [collectedCardId],
+          GUEST: [],
+        },
+      });
+      const pendingChoice = endTurn(state);
+
+      const result = chooseCollection(pendingChoice, candidateCardId);
+
+      expect(result.collections.OWNER).toEqual([
+        collectedCardId,
+        candidateCardId,
+      ]);
+      expect(result.starlightTokens.OWNER).toEqual({
+        light: 5 - penalty,
+        dark: penalty,
+      });
+      expect(result.status).toBe("IN_PROGRESS");
+    },
+  );
 
   it("重複収集で最後の光を失うと収集カードを残して敗北する", () => {
     const state = createFinalTurnState({
+      playedCards: playedCards("B1a", "X1", "X2"),
       collections: {
-        OWNER: ["R5b"],
+        OWNER: ["R1b"],
         GUEST: [],
       },
       starlightTokens: {
@@ -283,7 +302,7 @@ describe("selectCollection", () => {
     });
     const pendingChoice = endTurn(state);
 
-    const result = chooseCollection(pendingChoice, "B5a");
+    const result = chooseCollection(pendingChoice, "B1a");
 
     expect(result.status).toBe("COMPLETED");
     expect(result.result).toEqual({
@@ -293,7 +312,11 @@ describe("selectCollection", () => {
       resignedBy: null,
       endedAt: "2026-07-05T12:11:00.000Z",
     });
-    expect(result.collections.OWNER).toEqual(["R5b", "B5a"]);
+    expect(result.collections.OWNER).toEqual(["R1b", "B1a"]);
+    expect(result.starlightTokens.OWNER).toEqual({
+      light: 0,
+      dark: 5,
+    });
     expect(result.discardPile).toEqual(["R1a"]);
     expect(result.blackStarHolder).toBeNull();
   });
