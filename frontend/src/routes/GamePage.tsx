@@ -1,73 +1,48 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
-import type { CardView, GameView } from "../api/types";
+import type { GameView } from "../api/types";
+import { useAudio } from "../audio/AudioContext";
 import { useAuth } from "../auth/AuthContext";
-
-function Card({
-  card,
-  disabled,
-  onClick,
-}: {
-  readonly card: CardView;
-  readonly disabled?: boolean;
-  readonly onClick?: () => void;
-}) {
-  const content = (
-    <>
-      <span>{card.color}</span>
-      <strong>{card.number ?? (card.color === "REST" ? "休" : "?")}</strong>
-    </>
-  );
-  const label = `${card.color} ${card.number ?? (card.color === "REST" ? "休憩" : "不明")}`;
-
-  return onClick ? (
-    <button
-      className={`game-card color-${card.color.toLowerCase()}`}
-      disabled={disabled}
-      aria-label={label}
-      onClick={onClick}
-    >
-      {content}
-    </button>
-  ) : (
-    <div
-      className={`game-card color-${card.color.toLowerCase()}`}
-      role="img"
-      aria-label={label}
-    >
-      {content}
-    </div>
-  );
-}
+import { AudioControls } from "../components/AudioControls";
+import { GameCard } from "../components/GameCard";
+import { RulesDialog } from "../components/RulesDialog";
+import { StarlightTokens } from "../components/StarlightTokens";
+import {
+  actorName,
+  colorLabel,
+  leadColor,
+  phaseLabel,
+  playerName,
+  trumpColor,
+} from "../game/presentation";
 
 function instruction(game: GameView): string {
   if (game.status !== "IN_PROGRESS") {
     return "ゲームは終了しました。結果を確認してください。";
   }
 
-  const isViewerTurn =
-    game.currentActorPlayerId === game.viewerPlayerId;
+  const isViewerTurn = game.currentActorPlayerId === game.viewerPlayerId;
   if (!isViewerTurn) {
     if (game.phase === "AWAITING_COLLECTION_CHOICE") {
-      return "相手が獲得するカードを選んでいます。";
+      return `${playerName(game, game.currentActorPlayerId)}さんが獲得するカードを選んでいます。`;
     }
     if (game.phase === "AWAITING_DISCARD_TOP_CHOICE") {
-      return "相手が次の捨て札を選んでいます。";
+      return `${playerName(game, game.currentActorPlayerId)}さんが次の捨て札を選んでいます。`;
     }
-    return "相手の操作を待っています。";
+    return `${playerName(game, game.currentActorPlayerId)}さんの操作を待っています。`;
   }
 
   switch (game.phase) {
     case "PLAYER_TURN_BEFORE_PLAY":
-      return "手札からプレイするカードを選んでください。";
+      return "手札からカードを選び、プレイを確定してください。";
     case "PLAYER_TURN_AFTER_PLAY":
-      return "必要なら星明りでカードを引き、手番終了を押してください。";
+      return "必要なら星明りでカードを引き、手番を終了してください。";
     case "AWAITING_COLLECTION_CHOICE":
-      return "場のカードから獲得する感情カードを選んでください。";
+      return "場から獲得する感情カードを選び、確定してください。";
     case "AWAITING_DISCARD_TOP_CHOICE":
-      return "残りのカードから次の捨て札トップを選んでください。";
+      return "残りから次の捨て札トップを選び、確定してください。";
     case "COMPLETED":
     case "ABANDONED":
       return "ゲームは終了しました。結果を確認してください。";
@@ -89,22 +64,63 @@ function resultReason(reason: string): string {
   }
 }
 
+function confirmLabel(game: GameView): string {
+  switch (game.phase) {
+    case "PLAYER_TURN_BEFORE_PLAY":
+      return "このカードを出す";
+    case "AWAITING_COLLECTION_CHOICE":
+      return "このカードを獲得する";
+    case "AWAITING_DISCARD_TOP_CHOICE":
+      return "捨て札トップにする";
+    default:
+      return "選択を確定する";
+  }
+}
+
+function selectionCommand(
+  game: GameView,
+  cardId: string,
+): Record<string, unknown> | null {
+  switch (game.phase) {
+    case "PLAYER_TURN_BEFORE_PLAY":
+      return { type: "PLAY_CARD", cardId };
+    case "AWAITING_COLLECTION_CHOICE":
+      return { type: "SELECT_COLLECTION", cardId };
+    case "AWAITING_DISCARD_TOP_CHOICE":
+      return { type: "SELECT_DISCARD_TOP", cardId };
+    default:
+      return null;
+  }
+}
+
 export function GamePage() {
   const { gameId = "" } = useParams();
   const navigate = useNavigate();
   const auth = useAuth();
+  const audio = useAudio();
   const [game, setGame] = useState<GameView | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const previousGameRef = useRef<GameView | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const token = await auth.accessToken();
       const response = await api.game(token, gameId);
-      setGame(response.data.game);
+      setGame((current) => {
+        if (current?.version !== response.data.game.version) {
+          setSelectedCardId(null);
+        }
+        return response.data.game;
+      });
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "ゲームを取得できませんでした。");
+      setError(
+        cause instanceof ApiError
+          ? cause.message
+          : "ゲームを取得できませんでした。",
+      );
     }
   }, [auth, gameId]);
 
@@ -113,6 +129,33 @@ export function GamePage() {
     const timer = window.setInterval(() => void refresh(), 2_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    if (game === null) return;
+    const previous = previousGameRef.current;
+    if (previous !== null && previous.version !== game.version) {
+      const previousViewer = previous.players.find((player) => player.isViewer);
+      const currentViewer = game.players.find((player) => player.isViewer);
+      if (
+        game.status !== "IN_PROGRESS" &&
+        previous.status === "IN_PROGRESS"
+      ) {
+        audio.playSfx("gameEnd");
+      } else if (
+        currentViewer !== undefined &&
+        previousViewer !== undefined &&
+        currentViewer.starlight.light < previousViewer.starlight.light
+      ) {
+        audio.playSfx("lightLost");
+      } else if (
+        game.currentActorPlayerId === game.viewerPlayerId &&
+        previous.currentActorPlayerId !== previous.viewerPlayerId
+      ) {
+        audio.playSfx("turn");
+      }
+    }
+    previousGameRef.current = game;
+  }, [audio, game]);
 
   async function command(value: Record<string, unknown>) {
     if (!game || busy) return;
@@ -149,13 +192,25 @@ export function GamePage() {
         messages.push("感情カードを獲得しました。");
       }
       setNotice(messages.join(" "));
+      setSelectedCardId(null);
       setGame(nextGame);
+      audio.playSfx("confirm");
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "操作を実行できませんでした。");
+      setError(
+        cause instanceof ApiError
+          ? cause.message
+          : "操作を実行できませんでした。",
+      );
       await refresh();
     } finally {
       setBusy(false);
     }
+  }
+
+  async function confirmSelection() {
+    if (!game || selectedCardId === null) return;
+    const value = selectionCommand(game, selectedCardId);
+    if (value !== null) await command(value);
   }
 
   async function resign() {
@@ -166,7 +221,9 @@ export function GamePage() {
       const response = await api.resign(token, game, crypto.randomUUID());
       setGame(response.data.game);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "投了できませんでした。");
+      setError(
+        cause instanceof ApiError ? cause.message : "投了できませんでした。",
+      );
     } finally {
       setBusy(false);
     }
@@ -175,12 +232,20 @@ export function GamePage() {
   if (!game) {
     return <main className="page-shell">星明りを集めています。</main>;
   }
+
   const viewer = game.players.find((player) => player.isViewer);
   const opponent = game.players.find((player) => !player.isViewer);
-  const selectable = new Set([
+  const selectablePlayedCards = new Set([
     ...game.availableActions.collectionCandidateCardIds,
     ...game.availableActions.discardTopCandidateCardIds,
   ]);
+  const currentLeadColor = leadColor(game);
+  const currentTrumpColor = trumpColor(game.discardTop);
+  const blackStarHolderName =
+    game.blackStarHolderPlayerId === null
+      ? "中央"
+      : playerName(game, game.blackStarHolderPlayerId);
+  const drawCount = Math.min(3, Math.max(0, 10 - (viewer?.handCount ?? 10)));
 
   return (
     <main className="game-shell">
@@ -189,61 +254,120 @@ export function GamePage() {
           <p className="eyebrow">GAME {game.gameId.slice(0, 8)}</p>
           <h1>{game.status === "IN_PROGRESS" ? "対戦中" : "ゲーム終了"}</h1>
         </div>
-        <div className="turn-indicator">
-          {game.currentActorPlayerId === game.viewerPlayerId
-            ? "あなたの手番"
-            : "相手の手番"}
+        <div className="game-header-actions">
+          <AudioControls />
+          <RulesDialog />
+          <div className="turn-indicator">
+            {game.currentActorPlayerId === game.viewerPlayerId
+              ? "あなたの手番"
+              : `${playerName(game, game.currentActorPlayerId)}さんの手番`}
+          </div>
         </div>
       </header>
+
       <section className="game-instruction" aria-live="polite">
         <strong>{instruction(game)}</strong>
-        <small>現在のフェーズ: {game.phase}</small>
-      </section>
-      <section className="player-summary opponent">
-        <strong>{opponent?.displayName}</strong>
-        <span>手札 {opponent?.handCount}</span>
-        <span>光 {opponent?.starlight.light}</span>
-      </section>
-      <div className="hand opponent-hand" aria-label="相手の手札">
-        {opponent?.hand.map((card, index) => (
-          <Card key={`${card.color}-${index}`} card={card} disabled />
-        ))}
-      </div>
-      <section className="table-area">
-        <div className="deck-info">
-          <span>山札 {game.deck.remainingCount}</span>
-          <span>トップ {game.deck.topColor ?? "なし"}</span>
+        <div className="status-strip">
+          <span>進行: {phaseLabel(game.phase)}</span>
+          <span>リード: {colorLabel(currentLeadColor)}</span>
+          <span>トランプ: {colorLabel(currentTrumpColor)}</span>
         </div>
-        <div className="played-cards">
-          {game.playedCards.map((played, index) => (
-            <div key={`${played.actor}-${index}`}>
-              <small>{played.actor}</small>
-              <Card
-                card={played.card}
-                disabled={!played.card.cardId || !selectable.has(played.card.cardId)}
-                onClick={() => {
-                  if (!played.card.cardId) return;
-                  void command({
-                    type:
-                      game.pendingChoice?.type === "COLLECTION"
-                        ? "SELECT_COLLECTION"
-                        : "SELECT_DISCARD_TOP",
-                    cardId: played.card.cardId,
-                  });
-                }}
-              />
+      </section>
+
+      {opponent && (
+        <section className="player-zone opponent-zone">
+          <header className="player-summary">
+            <div>
+              <strong>{opponent.displayName}</strong>
+              <span className="player-role">対戦相手</span>
             </div>
-          ))}
+            <div className="player-badges">
+              {game.startPlayerId === opponent.playerId && (
+                <span className="start-player-badge">✦ スタート</span>
+              )}
+              {game.blackStarHolderPlayerId === opponent.playerId && (
+                <span className="black-star-badge">★ 黒い星</span>
+              )}
+              <span>手札 {opponent.handCount}枚</span>
+            </div>
+          </header>
+          <StarlightTokens {...opponent.starlight} />
+          <div className="hand opponent-hand" aria-label="相手の手札">
+            {opponent.hand.map((card, index) => (
+              <GameCard
+                key={`${card.color}-${index}`}
+                card={card}
+                faceDown
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="table-area" aria-label="中央の盤面">
+        <div className="table-status">
+          <span className="black-star-marker" key={`${blackStarHolderName}-${game.version}`}>
+            ★
+          </span>
+          <span>黒い星: {blackStarHolderName}</span>
         </div>
-        <div className="discard-pile">
-          <p>捨て札</p>
-          {game.discardTop ? (
-            <Card card={game.discardTop} disabled />
-          ) : (
-            <span>なし</span>
-          )}
+        <div className="table-columns">
+          <section className="pile-zone deck-pile" aria-label="山札">
+            <h2>山札</h2>
+            <div className="card-stack" aria-hidden="true">
+              <span />
+              <span />
+              {game.deck.topColor && (
+                <GameCard card={{ color: game.deck.topColor }} faceDown />
+              )}
+            </div>
+            <strong>{game.deck.remainingCount}枚</strong>
+            <small>トップ: {colorLabel(game.deck.topColor)}</small>
+          </section>
+
+          <section className="trick-zone" aria-label="プレイされたカード">
+            <h2>場のカード</h2>
+            <div className="played-cards">
+              {game.playedCards.length === 0 && (
+                <span className="empty-table">まだカードはありません</span>
+              )}
+              {game.playedCards.map((played, index) => {
+                const cardId = played.card.cardId;
+                const canSelect =
+                  cardId !== undefined && selectablePlayedCards.has(cardId);
+                return (
+                  <div key={`${played.actor}-${index}`} className="played-card-slot">
+                    <small>{actorName(game, played.actor)}</small>
+                    <GameCard
+                      card={played.card}
+                      selected={cardId === selectedCardId}
+                      onClick={
+                        canSelect
+                          ? () => {
+                              setSelectedCardId(cardId);
+                              audio.playSfx("select");
+                            }
+                          : undefined
+                      }
+                      disabled={busy}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="pile-zone discard-pile" aria-label="捨て札">
+            <h2>捨て札</h2>
+            {game.discardTop ? (
+              <GameCard card={game.discardTop} />
+            ) : (
+              <span className="empty-table">なし</span>
+            )}
+          </section>
         </div>
       </section>
+
       <section className="collections-panel panel" aria-label="獲得カード">
         <h2>獲得カード</h2>
         <div className="collection-grid">
@@ -258,7 +382,7 @@ export function GamePage() {
                   <span className="empty-collection">まだありません</span>
                 ) : (
                   player.collection.map((card, index) => (
-                    <Card key={card.cardId ?? index} card={card} />
+                    <GameCard key={card.cardId ?? index} card={card} />
                   ))
                 )}
               </div>
@@ -266,16 +390,40 @@ export function GamePage() {
           ))}
         </div>
       </section>
-      <section className="controls panel">
+
+      <section className="controls panel" aria-label="操作">
+        {selectedCardId && (
+          <div className="selection-confirmation">
+            <span>カードを選択中</span>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={busy}
+              onClick={() => void confirmSelection()}
+            >
+              {confirmLabel(game)}
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              disabled={busy}
+              onClick={() => setSelectedCardId(null)}
+            >
+              選び直す
+            </button>
+          </div>
+        )}
         <div className="button-row">
           <button
+            type="button"
             className="secondary-button"
             disabled={busy || !game.availableActions.canDrawCards}
             onClick={() => void command({ type: "DRAW_CARDS" })}
           >
-            星明りで3枚引く
+            星明りで{drawCount}枚引く
           </button>
           <button
+            type="button"
             className="primary-button"
             disabled={busy || !game.availableActions.canEndTurn}
             onClick={() => void command({ type: "END_TURN" })}
@@ -283,6 +431,7 @@ export function GamePage() {
             手番終了
           </button>
           <button
+            type="button"
             className="text-button danger"
             disabled={busy || !game.availableActions.canResign}
             onClick={() => void resign()}
@@ -293,31 +442,52 @@ export function GamePage() {
         {notice && <p className="notice-message">{notice}</p>}
         {error && <p className="error-message">{error}</p>}
       </section>
-      <section className="hand-area">
-        <div className="player-summary">
-          <strong>{viewer?.displayName}</strong>
-          <span>光 {viewer?.starlight.light}</span>
-          <span>闇 {viewer?.starlight.dark}</span>
-        </div>
-        <div className="hand">
-          {viewer?.hand.map((card, index) => (
-            <Card
-              key={card.cardId ?? index}
-              card={card}
-              disabled={
-                busy ||
-                !card.cardId ||
-                !game.availableActions.playableCardIds.includes(card.cardId)
-              }
-              onClick={() => {
-                if (card.cardId) {
-                  void command({ type: "PLAY_CARD", cardId: card.cardId });
-                }
-              }}
-            />
-          ))}
-        </div>
-      </section>
+
+      {viewer && (
+        <section className="player-zone viewer-zone">
+          <header className="player-summary">
+            <div>
+              <strong>{viewer.displayName}</strong>
+              <span className="player-role">あなた</span>
+            </div>
+            <div className="player-badges">
+              {game.startPlayerId === viewer.playerId && (
+                <span className="start-player-badge">✦ スタート</span>
+              )}
+              {game.blackStarHolderPlayerId === viewer.playerId && (
+                <span className="black-star-badge">★ 黒い星</span>
+              )}
+              <span>手札 {viewer.handCount}枚</span>
+            </div>
+          </header>
+          <StarlightTokens {...viewer.starlight} />
+          <div className="hand" aria-label="あなたの手札">
+            {viewer.hand.map((card, index) => {
+              const cardId = card.cardId;
+              const canSelect =
+                cardId !== undefined &&
+                game.availableActions.playableCardIds.includes(cardId);
+              return (
+                <GameCard
+                  key={cardId ?? index}
+                  card={card}
+                  selected={cardId === selectedCardId}
+                  onClick={
+                    canSelect
+                      ? () => {
+                          setSelectedCardId(cardId);
+                          audio.playSfx("select");
+                        }
+                      : undefined
+                  }
+                  disabled={busy}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {game.result && (
         <div className="result-overlay">
           <section className="panel">
@@ -330,6 +500,7 @@ export function GamePage() {
             </h2>
             <p>終了理由: {resultReason(game.result.endReason)}</p>
             <button
+              type="button"
               className="primary-button"
               onClick={() => navigate("/", { replace: true })}
             >

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { AudioControls } from "../components/AudioControls";
+import { RulesDialog } from "../components/RulesDialog";
 
 export function HomePage() {
   const auth = useAuth();
@@ -76,9 +78,13 @@ export function HomePage() {
           <p className="eyebrow">STELLA QUEST</p>
           <h1>Duel Lobby</h1>
         </div>
-        <button className="text-button" onClick={() => void auth.signOut()}>
-          ログアウト
-        </button>
+        <div className="topbar-actions">
+          <AudioControls />
+          <RulesDialog />
+          <button className="text-button" onClick={() => void auth.signOut()}>
+            ログアウト
+          </button>
+        </div>
       </header>
       <section className="action-grid">
         <article className="panel">

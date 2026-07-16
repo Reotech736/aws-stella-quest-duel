@@ -89,11 +89,11 @@ export function WaitingRoomPage() {
         <p>このIDを対戦相手に共有してください。</p>
         <div className="player-slots">
           <div>
-            <span>OWNER</span>
+            <span>ルーム作成者</span>
             <strong>{room?.owner.displayName ?? "読み込み中"}</strong>
           </div>
           <div>
-            <span>GUEST</span>
+            <span>参加者</span>
             <strong>{room?.guest?.displayName ?? "参加待ち"}</strong>
           </div>
         </div>

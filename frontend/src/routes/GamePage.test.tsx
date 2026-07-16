@@ -95,7 +95,7 @@ describe("GamePage", () => {
     );
 
     expect(await screen.findByText("捨て札")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "RED 3" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "赤 3" })).toBeInTheDocument();
   });
 
   it("両プレイヤーの獲得カードを公開表示する", async () => {
@@ -125,23 +125,26 @@ describe("GamePage", () => {
     );
 
     expect(await screen.findByLabelText("獲得カード")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "GREEN 4" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "YELLOW 6" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "緑 4" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "黄 6" })).toBeInTheDocument();
   });
 
   it.each([
-    ["PLAYER_TURN_BEFORE_PLAY", "手札からプレイするカードを選んでください。"],
+    [
+      "PLAYER_TURN_BEFORE_PLAY",
+      "手札からカードを選び、プレイを確定してください。",
+    ],
     [
       "PLAYER_TURN_AFTER_PLAY",
-      "必要なら星明りでカードを引き、手番終了を押してください。",
+      "必要なら星明りでカードを引き、手番を終了してください。",
     ],
     [
       "AWAITING_COLLECTION_CHOICE",
-      "場のカードから獲得する感情カードを選んでください。",
+      "場から獲得する感情カードを選び、確定してください。",
     ],
     [
       "AWAITING_DISCARD_TOP_CHOICE",
-      "残りのカードから次の捨て札トップを選んでください。",
+      "残りから次の捨て札トップを選び、確定してください。",
     ],
   ] as const)("%s の操作指示を表示する", async (phase, message) => {
     apiMock.game.mockResolvedValue({ data: { game: { ...game, phase } } });
@@ -184,10 +187,49 @@ describe("GamePage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "BLUE 1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "青 1" }));
+    expect(apiMock.command).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "このカードを出す" }));
 
     expect(
       await screen.findByText("手札が尽きたため、5枚補充されました。"),
+    ).toBeInTheDocument();
+  });
+
+  it("星明りを5枚の表裏として表示し、内部の役割名を表示しない", async () => {
+    apiMock.game.mockResolvedValue({ data: { game } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      (await screen.findAllByRole("img", {
+        name: "星明り: 光5枚、闇0枚",
+      })).length,
+    ).toBe(2);
+    expect(screen.queryByText("OWNER")).not.toBeInTheDocument();
+    expect(screen.queryByText("GUEST")).not.toBeInTheDocument();
+    expect(screen.queryByText("DUMMY")).not.toBeInTheDocument();
+  });
+
+  it("ルール画面に正しい重複収集ペナルティを表示する", async () => {
+    apiMock.game.mockResolvedValue({ data: { game } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "ルール" }));
+
+    expect(
+      screen.getByText(
+        "5枚すべてを光面で始めます。重複収集では、数字1・2は3枚、3・4は2枚、5・6は1枚を闇面にします。",
+      ),
     ).toBeInTheDocument();
   });
 

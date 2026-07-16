@@ -101,4 +101,19 @@ describe("WaitingRoomPage", () => {
       expect(navigateMock).toHaveBeenCalledWith("/", { replace: true });
     });
   });
+
+  it("内部の役割名を利用者向けの名称に置き換える", async () => {
+    apiMock.room.mockResolvedValue({ data: { room: waitingRoom } });
+
+    render(
+      <MemoryRouter>
+        <WaitingRoomPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("ルーム作成者")).toBeInTheDocument();
+    expect(screen.getByText("参加者")).toBeInTheDocument();
+    expect(screen.queryByText("OWNER")).not.toBeInTheDocument();
+    expect(screen.queryByText("GUEST")).not.toBeInTheDocument();
+  });
 });
