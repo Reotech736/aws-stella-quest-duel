@@ -417,6 +417,75 @@ h1 {
   transition: translate 160ms ease, scale 160ms ease, box-shadow 160ms ease;
 }
 
+.game-card.has-card-art {
+  padding: 0;
+  background: #260709;
+  border: 0;
+  border-radius: 0.3rem;
+}
+
+.card-artwork {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.card-art-layer {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.card-illustration {
+  top: 7.142857%;
+  left: 10%;
+  width: 80%;
+  height: 85.714286%;
+}
+
+.card-frame {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.card-number {
+  width: 11.333333%;
+  height: 10%;
+}
+
+.card-number-top-left { top: 4.761905%; left: 6%; }
+.card-number-top-right { top: 4.761905%; left: 83.333333%; }
+.card-number-bottom-left { top: 85.714286%; left: 6%; }
+.card-number-bottom-right { top: 85.714286%; left: 83.333333%; }
+
+.card-gem {
+  width: 8%;
+  height: 7.142857%;
+}
+
+.card-gem-top { top: 1.904762%; }
+.card-gem-bottom { top: 91.428571%; }
+.card-gem-left { left: 36%; }
+.card-gem-center { left: 46%; }
+.card-gem-right { left: 56%; }
+
+.card-gem-count {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 button.game-card:not(:disabled):hover,
 .game-card.is-selected {
   translate: 0 -0.55rem;
