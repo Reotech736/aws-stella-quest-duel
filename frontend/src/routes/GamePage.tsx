@@ -336,7 +336,10 @@ export function GamePage() {
                 const canSelect =
                   cardId !== undefined && selectablePlayedCards.has(cardId);
                 return (
-                  <div key={`${played.actor}-${index}`} className="played-card-slot">
+                  <div
+                    key={`${played.actor}-${cardId ?? index}`}
+                    className="played-card-slot"
+                  >
                     <small>{actorName(game, played.actor)}</small>
                     <GameCard
                       card={played.card}
