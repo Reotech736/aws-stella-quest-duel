@@ -454,6 +454,12 @@ h1 {
   height: 100%;
 }
 
+.card-back-image {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .card-number {
   width: 11.333333%;
   height: 10%;

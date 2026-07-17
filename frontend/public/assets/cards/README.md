@@ -2,12 +2,15 @@
 
 ## 構成
 
-赤い感情カードは、以下の低解像度PNGをブラウザ上で重ねて表示します。
+感情カードは、以下の低解像度PNGをブラウザ上で重ねて表示します。
 
-- `red/illustration-1.png`〜`illustration-6.png`: 背景込みイラスト、120×180px
-- `red/frame-red.png`: 赤カード共通フレーム、150×210px、透過PNG
-- `red/gem-red.png`: 赤い宝石、12×15px、透過PNG
+- `{red,blue,green,yellow}/illustration-1.png`〜`illustration-6.png`: 背景込みイラスト、120×180px
+- `{red,blue,green,yellow}/frame-{color}.png`: 色別共通フレーム、150×210px、透過PNG
+- `{red,blue,green,yellow}/gem-{color}.png`: 色別宝石、12×15px、透過PNG
 - `numbers/number-1.png`〜`number-6.png`: 数字、17×21px、透過PNG
+- `rest/illustration-rest.png`: 休憩カードの背景込みイラスト、120×180px
+- `rest/frame-rest.png`: 休憩カード共通フレーム、150×210px、透過PNG
+- `backs/back-{color}.png`: 赤、青、緑、黄、休憩の裏面、150×210px
 
 イラストはカード全体の`x=15, y=15`へ配置します。フレーム、数字、宝石は150×210pxの共通座標を基準に重ねます。
 
@@ -17,6 +20,7 @@
 
 - 現物写真は精霊の構図と世界観を理解するための参照資料としてのみ使用しています。
 - イラストは画像生成機能を使ったオリジナルのピクセルアートで、現物写真の切り抜きや直接トレースではありません。
+- 同じ数字の4色は同じイラストをピクセル単位で配色変換し、構図と輪郭を一致させています。
 - 枠、数字、宝石は低解像度のドット絵PNGとして分離し、カード間で同じ位置と大きさを再利用します。
 - ブラウザ表示では`image-rendering: pixelated`を使用し、補間によるぼやけを抑えます。
-- 現時点の正式素材は赤1〜6のみです。青、緑、黄、休憩カードは今後同じ座標規則で追加します。
+- 表面25種類と裏面5種類を同じ150×210pxの座標規則で管理します。

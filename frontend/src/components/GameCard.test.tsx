@@ -22,19 +22,26 @@ describe("GameCard", () => {
     expect(container.querySelectorAll(".card-gem")).toHaveLength(gems * 2);
   });
 
-  it("赤い感情カードを共通フレームと画像レイヤーで表示する", () => {
+  it.each([
+    ["RED", "red"],
+    ["BLUE", "blue"],
+    ["GREEN", "green"],
+    ["YELLOW", "yellow"],
+  ])("%sの感情カードを共通レイヤーで表示する", (color, assetColor) => {
     const { container } = render(
-      <GameCard card={{ type: "EMOTION", color: "RED", number: 4 }} />,
+      <GameCard card={{ type: "EMOTION", color, number: 4 }} />,
     );
 
-    expect(container.querySelector("[data-card-artwork='red-4']")).toBeInTheDocument();
+    expect(
+      container.querySelector(`[data-card-artwork='front-${assetColor}-4']`),
+    ).toBeInTheDocument();
     expect(container.querySelector(".card-illustration")).toHaveAttribute(
       "src",
-      "/assets/cards/red/illustration-4.png",
+      `/assets/cards/${assetColor}/illustration-4.png`,
     );
     expect(container.querySelector(".card-frame")).toHaveAttribute(
       "src",
-      "/assets/cards/red/frame-red.png",
+      `/assets/cards/${assetColor}/frame-${assetColor}.png`,
     );
     expect(container.querySelectorAll(".card-number")).toHaveLength(4);
     expect(container.querySelectorAll("[data-gem-slot='left']")).toHaveLength(2);
@@ -42,9 +49,27 @@ describe("GameCard", () => {
     expect(container.querySelector("[data-gem-slot='center']")).not.toBeInTheDocument();
   });
 
+  it("休憩カードを専用イラストとフレームで表示する", () => {
+    const { container } = render(
+      <GameCard card={{ type: "REST", color: "REST" }} />,
+    );
+
+    expect(container.querySelector("[data-card-artwork='front-rest']")).toBeInTheDocument();
+    expect(container.querySelector(".card-illustration")).toHaveAttribute(
+      "src",
+      "/assets/cards/rest/illustration-rest.png",
+    );
+    expect(container.querySelector(".card-frame")).toHaveAttribute(
+      "src",
+      "/assets/cards/rest/frame-rest.png",
+    );
+    expect(container.querySelector(".card-number")).not.toBeInTheDocument();
+    expect(container.querySelector(".card-gem")).not.toBeInTheDocument();
+  });
+
   it("未対応色は従来表示へフォールバックする", () => {
     const { container } = render(
-      <GameCard card={{ type: "EMOTION", color: "GREEN", number: 4 }} />,
+      <GameCard card={{ type: "EMOTION", color: "PURPLE", number: 4 }} />,
     );
 
     expect(container.querySelector(".card-artwork")).not.toBeInTheDocument();
@@ -67,15 +92,19 @@ describe("GameCard", () => {
   it("裏向きカードでは数字を公開しない", () => {
     const { container } = render(
       <GameCard
-        card={{ type: "EMOTION", color: "RED", number: 6 }}
+        card={{ type: "EMOTION", color: "BLUE", number: 6 }}
         faceDown
       />,
     );
 
     expect(
-      screen.getByRole("img", { name: "赤のカード（裏向き）" }),
+      screen.getByRole("img", { name: "青のカード（裏向き）" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("6")).not.toBeInTheDocument();
-    expect(container.querySelector(".card-artwork")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-card-artwork='back-blue']")).toBeInTheDocument();
+    expect(container.querySelector(".card-back-image")).toHaveAttribute(
+      "src",
+      "/assets/cards/backs/back-blue.png",
+    );
   });
 });

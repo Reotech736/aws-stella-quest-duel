@@ -13,6 +13,8 @@ interface GameCardProps {
 
 const NUMBER_POSITIONS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
 const GEM_ROWS = ["top", "bottom"] as const;
+const EMOTION_COLORS = ["RED", "BLUE", "GREEN", "YELLOW"] as const;
+const BACK_COLORS = [...EMOTION_COLORS, "REST"] as const;
 
 function gemSlots(number: number): readonly ("left" | "center" | "right")[] {
   if (number <= 2) return ["left", "center", "right"];
@@ -20,8 +22,22 @@ function gemSlots(number: number): readonly ("left" | "center" | "right")[] {
   return ["center"];
 }
 
-function hasRedArtwork(card: CardView): card is CardView & { readonly number: number } {
-  return card.color === "RED" && card.number !== undefined && card.number >= 1 && card.number <= 6;
+function isOneOf<T extends string>(value: string, candidates: readonly T[]): value is T {
+  return candidates.some((candidate) => candidate === value);
+}
+
+function hasEmotionArtwork(
+  card: CardView,
+): card is CardView & {
+  readonly color: (typeof EMOTION_COLORS)[number];
+  readonly number: number;
+} {
+  return (
+    isOneOf(card.color, EMOTION_COLORS) &&
+    card.number !== undefined &&
+    card.number >= 1 &&
+    card.number <= 6
+  );
 }
 
 export function GameCard({
@@ -33,9 +49,19 @@ export function GameCard({
 }: GameCardProps) {
   const [failedAssetKey, setFailedAssetKey] = useState<string | null>(null);
   const isRest = card.color === "REST";
-  const assetKey = hasRedArtwork(card) ? `red-${card.number}` : null;
-  const showLayeredArtwork = !faceDown && assetKey !== null && failedAssetKey !== assetKey;
-  const artworkNumber = showLayeredArtwork ? card.number : undefined;
+  const emotionColor = hasEmotionArtwork(card) ? card.color.toLowerCase() : null;
+  const backColor = isOneOf(card.color, BACK_COLORS) ? card.color.toLowerCase() : null;
+  const frontAssetKey = emotionColor !== null
+    ? `front-${emotionColor}-${card.number}`
+    : isRest
+      ? "front-rest"
+      : null;
+  const assetKey = faceDown && backColor !== null ? `back-${backColor}` : frontAssetKey;
+  const showBackArtwork = faceDown && backColor !== null && failedAssetKey !== assetKey;
+  const showEmotionArtwork =
+    !faceDown && emotionColor !== null && frontAssetKey !== null && failedAssetKey !== assetKey;
+  const showRestArtwork = !faceDown && isRest && failedAssetKey !== assetKey;
+  const artworkNumber = showEmotionArtwork ? card.number : undefined;
   const label = faceDown
     ? `${colorLabel(card.color)}のカード（裏向き）`
     : isRest
@@ -45,7 +71,7 @@ export function GameCard({
     "game-card",
     `color-${card.color.toLowerCase()}`,
     faceDown ? "card-back" : "card-face",
-    showLayeredArtwork ? "has-card-art" : "",
+    showBackArtwork || showEmotionArtwork || showRestArtwork ? "has-card-art" : "",
     selected ? "is-selected" : "",
   ]
     .filter(Boolean)
@@ -66,23 +92,50 @@ export function GameCard({
   const handleAssetError = () => {
     if (assetKey !== null) setFailedAssetKey(assetKey);
   };
-  const content = faceDown ? (
+  const content = showBackArtwork ? (
+    <span className="card-artwork" data-card-artwork={assetKey}>
+      <img
+        className="card-art-layer card-back-image"
+        src={`/assets/cards/backs/back-${backColor}.png`}
+        alt=""
+        aria-hidden="true"
+        onError={handleAssetError}
+      />
+    </span>
+  ) : faceDown ? (
     <>
       <span className="card-back-star" aria-hidden="true">✦</span>
       <span className="card-color-name">{colorLabel(card.color)}</span>
     </>
-  ) : artworkNumber !== undefined ? (
-    <span className="card-artwork" data-card-artwork={assetKey}>
+  ) : showRestArtwork ? (
+    <span className="card-artwork" data-card-artwork="front-rest">
       <img
         className="card-art-layer card-illustration"
-        src={`/assets/cards/red/illustration-${artworkNumber}.png`}
+        src="/assets/cards/rest/illustration-rest.png"
         alt=""
         aria-hidden="true"
         onError={handleAssetError}
       />
       <img
         className="card-art-layer card-frame"
-        src="/assets/cards/red/frame-red.png"
+        src="/assets/cards/rest/frame-rest.png"
+        alt=""
+        aria-hidden="true"
+        onError={handleAssetError}
+      />
+    </span>
+  ) : artworkNumber !== undefined && emotionColor !== null ? (
+    <span className="card-artwork" data-card-artwork={assetKey}>
+      <img
+        className="card-art-layer card-illustration"
+        src={`/assets/cards/${emotionColor}/illustration-${artworkNumber}.png`}
+        alt=""
+        aria-hidden="true"
+        onError={handleAssetError}
+      />
+      <img
+        className="card-art-layer card-frame"
+        src={`/assets/cards/${emotionColor}/frame-${emotionColor}.png`}
         alt=""
         aria-hidden="true"
         onError={handleAssetError}
@@ -102,7 +155,7 @@ export function GameCard({
           <img
             key={`${row}-${slot}`}
             className={`card-art-layer card-gem card-gem-${row} card-gem-${slot}`}
-            src="/assets/cards/red/gem-red.png"
+            src={`/assets/cards/${emotionColor}/gem-${emotionColor}.png`}
             alt=""
             aria-hidden="true"
             data-gem-row={row}
