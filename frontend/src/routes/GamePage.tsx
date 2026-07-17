@@ -307,7 +307,7 @@ export function GamePage() {
       <section className="table-area" aria-label="中央の盤面">
         <div className="table-status">
           <span className="black-star-marker" key={`${blackStarHolderName}-${game.version}`}>
-            ★
+            <img src="/assets/game-pieces/black-star.png" alt="" />
           </span>
           <span>黒い星: {blackStarHolderName}</span>
         </div>

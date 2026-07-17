@@ -19,7 +19,10 @@ export function StarlightTokens({ light, dark }: StarlightTokensProps) {
             title={isLight ? "光面" : "闇面"}
             aria-hidden="true"
           >
-            {isLight ? "✦" : "☾"}
+            <img
+              src={`/assets/game-pieces/starlight-${isLight ? "light" : "dark"}.png`}
+              alt=""
+            />
           </span>
         );
       })}
