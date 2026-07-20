@@ -20,6 +20,13 @@
   --color-danger-surface: oklch(24% 0.055 24);
   --color-success: oklch(74% 0.1 145);
   --color-success-surface: oklch(24% 0.04 145);
+  --color-card-red: oklch(48% 0.16 24);
+  --color-card-blue: oklch(48% 0.12 255);
+  --color-card-green: oklch(45% 0.1 158);
+  --color-card-yellow: oklch(73% 0.13 84);
+  --color-card-rest: oklch(48% 0.02 255);
+  --color-card-dark: oklch(18% 0.03 24);
+  --color-gem: oklch(90% 0.1 92);
   --color-shadow: oklch(6% 0.012 260 / 55%);
   --color-scrim: oklch(8% 0.018 260 / 88%);
 

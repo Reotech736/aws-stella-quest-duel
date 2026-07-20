@@ -72,13 +72,13 @@ export function HomePage() {
   }
 
   return (
-    <main className="page-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">STELLA QUEST</p>
-          <h1>Duel Lobby</h1>
+    <main className="app-shell lobby-shell">
+      <header className="app-masthead">
+        <div className="wordmark">
+          <span>STELLA QUEST</span>
+          <strong>対戦ロビー</strong>
         </div>
-        <div className="topbar-actions">
+        <div className="utility-actions">
           <AudioControls />
           <RulesDialog />
           <button className="text-button" onClick={() => void auth.signOut()}>
@@ -86,23 +86,29 @@ export function HomePage() {
           </button>
         </div>
       </header>
-      <section className="action-grid">
-        <article className="panel">
-          <h2>新しい対戦</h2>
-          <p>ルームを作り、6桁のIDを対戦相手に共有します。</p>
+      <section className="lobby-command" aria-labelledby="new-match-title">
+        <div className="command-copy">
+          <p className="section-code">新しい対戦 / 01</p>
+          <h1 id="new-match-title">星明りを並べ、対戦相手を招く。</h1>
+          <p>
+            対戦ルームを作ると6桁のIDが発行されます。相手へIDを共有し、
+            2人そろったらスタートプレイヤーを決めます。
+          </p>
           <button
             className="primary-button"
             disabled={busy}
             onClick={() => void createRoom()}
           >
-            ルームを作成
+            {busy ? "作成中…" : "ルームを作成"}
           </button>
-        </article>
-        <article className="panel">
-          <h2>ルームへ参加</h2>
-          <form className="stack" onSubmit={joinRoom}>
+        </div>
+
+        <aside className="join-ledger" aria-labelledby="join-room-title">
+          <p className="section-code">招待から参加 / 02</p>
+          <h2 id="join-room-title">ルームIDを持っていますか</h2>
+          <form className="form-stack" onSubmit={joinRoom} aria-busy={busy}>
             <label>
-              ルームID
+              6桁のルームID
               <input
                 value={roomId}
                 onChange={(event) => setRoomId(event.target.value)}
@@ -113,10 +119,10 @@ export function HomePage() {
               />
             </label>
             <button className="secondary-button" disabled={busy}>
-              参加
+              {busy ? "確認中…" : "このルームへ参加"}
             </button>
           </form>
-        </article>
+        </aside>
       </section>
       {error && <p className="error-message">{error}</p>}
     </main>

@@ -5,8 +5,8 @@ export function AudioControls() {
 
   return (
     <details className="audio-controls">
-      <summary className="text-button">音</summary>
-      <div className="audio-panel panel">
+      <summary className="text-button">音設定</summary>
+      <div className="audio-panel">
         <label className="toggle-row">
           <input
             type="checkbox"

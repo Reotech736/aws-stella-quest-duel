@@ -28,12 +28,37 @@ export function LoginPage() {
   }
 
   return (
-    <main className="page-shell narrow-shell">
-      <section className="panel hero-panel">
-        <p className="eyebrow">PRIVATE BETA</p>
-        <h1>ステラクエスト Duel</h1>
-        <p>招待されたプレイヤー向けの二人対戦版です。</p>
-        <form className="stack" onSubmit={submit}>
+    <main className="entry-shell">
+      <section className="entry-intro" aria-labelledby="product-title">
+        <p className="kicker">招待制・二人対戦</p>
+        <h1 id="product-title">
+          ステラクエスト
+          <span>Duel</span>
+        </h1>
+        <p className="entry-lede">
+          星明りを守りながら、六つの感情を集めるオンライン対戦です。
+        </p>
+        <dl className="entry-notes">
+          <div>
+            <dt>対戦人数</dt>
+            <dd>2人＋ダミー</dd>
+          </div>
+          <div>
+            <dt>公開範囲</dt>
+            <dd>招待ユーザー限定</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="auth-sheet" aria-labelledby="auth-title">
+        <p className="section-code">接続 / 01</p>
+        <h2 id="auth-title">
+          {auth.needsNewPassword ? "新しいパスワードを設定" : "対戦席へ入る"}
+        </h2>
+        <p className="sheet-description">
+          管理者から案内された認証情報を入力してください。
+        </p>
+        <form className="form-stack" onSubmit={submit} aria-busy={submitting}>
           {!auth.needsNewPassword && (
             <label>
               ユーザー名
@@ -61,7 +86,11 @@ export function LoginPage() {
           </label>
           {error && <p className="error-message">{error}</p>}
           <button className="primary-button" disabled={submitting}>
-            {auth.needsNewPassword ? "パスワードを確定" : "ログイン"}
+            {submitting
+              ? "確認中…"
+              : auth.needsNewPassword
+                ? "パスワードを確定"
+                : "ログイン"}
           </button>
         </form>
       </section>

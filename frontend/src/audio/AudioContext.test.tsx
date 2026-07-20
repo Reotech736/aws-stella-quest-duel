@@ -16,7 +16,7 @@ describe("AudioProvider", () => {
       </AudioProvider>,
     );
 
-    fireEvent.click(screen.getByText("音"));
+    fireEvent.click(screen.getByText("音設定"));
 
     expect(screen.getByRole("checkbox", { name: "効果音" })).not.toBeChecked();
     expect(
@@ -31,7 +31,7 @@ describe("AudioProvider", () => {
       </AudioProvider>,
     );
 
-    fireEvent.click(screen.getByText("音"));
+    fireEvent.click(screen.getByText("音設定"));
     fireEvent.click(screen.getByRole("checkbox", { name: "効果音" }));
 
     expect(window.localStorage.getItem("stella-quest-duel.audio")).toContain(

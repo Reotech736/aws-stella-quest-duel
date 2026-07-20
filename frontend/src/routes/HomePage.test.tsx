@@ -21,7 +21,7 @@ describe("HomePage", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "Duel Lobby",
+        name: "星明りを並べ、対戦相手を招く。",
       }),
     ).toBeInTheDocument();
     expect(
@@ -41,5 +41,8 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("dialog", { name: "ステラクエスト Duelの遊び方" }),
     ).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
