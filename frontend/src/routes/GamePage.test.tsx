@@ -156,6 +156,8 @@ describe("GamePage", () => {
     );
 
     expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "次にすること" })).toBeInTheDocument();
+    expect(screen.getByText("現在")).toBeInTheDocument();
   });
 
   it("最後の手札を出して自動補充された枚数を通知する", async () => {

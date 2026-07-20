@@ -5,15 +5,14 @@ import { api, ApiError } from "../api/client";
 import type { GameView } from "../api/types";
 import { useAudio } from "../audio/AudioContext";
 import { useAuth } from "../auth/AuthContext";
-import { AudioControls } from "../components/AudioControls";
+import { CollectionLedger } from "../components/CollectionLedger";
 import { GameCard } from "../components/GameCard";
-import { RulesDialog } from "../components/RulesDialog";
+import { GameStatusRail } from "../components/GameStatusRail";
 import { StarlightTokens } from "../components/StarlightTokens";
 import {
   actorName,
   colorLabel,
   leadColor,
-  phaseLabel,
   playerName,
   trumpColor,
 } from "../game/presentation";
@@ -249,100 +248,161 @@ export function GamePage() {
 
   return (
     <main className="game-shell">
-      <header className="game-header">
-        <div>
-          <p className="eyebrow">GAME {game.gameId.slice(0, 8)}</p>
-          <h1>{game.status === "IN_PROGRESS" ? "対戦中" : "ゲーム終了"}</h1>
+      <header className="app-masthead game-masthead">
+        <div className="wordmark">
+          <span>GAME {game.gameId.slice(0, 8)}</span>
+          <strong>
+            {game.status === "IN_PROGRESS" ? "対戦卓" : "対戦結果"}
+          </strong>
         </div>
-        <div className="game-header-actions">
-          <AudioControls />
-          <RulesDialog />
-          <div className="turn-indicator">
-            {game.currentActorPlayerId === game.viewerPlayerId
+        <p className="current-turn" aria-live="polite">
+          {game.status !== "IN_PROGRESS"
+            ? "ゲーム終了"
+            : game.currentActorPlayerId === game.viewerPlayerId
               ? "あなたの手番"
               : `${playerName(game, game.currentActorPlayerId)}さんの手番`}
-          </div>
-        </div>
+        </p>
       </header>
 
-      <section className="game-instruction" aria-live="polite">
-        <strong>{instruction(game)}</strong>
-        <div className="status-strip">
-          <span>進行: {phaseLabel(game.phase)}</span>
-          <span>リード: {colorLabel(currentLeadColor)}</span>
-          <span>トランプ: {colorLabel(currentTrumpColor)}</span>
-        </div>
-      </section>
+      <div className="game-workbench">
+        <GameStatusRail
+          game={game}
+          instruction={instruction(game)}
+          leadColor={currentLeadColor}
+          trumpColor={currentTrumpColor}
+          blackStarHolderName={blackStarHolderName}
+        />
 
-      {opponent && (
-        <section className="player-zone opponent-zone">
-          <header className="player-summary">
-            <div>
-              <strong>{opponent.displayName}</strong>
-              <span className="player-role">対戦相手</span>
-            </div>
-            <div className="player-badges">
-              {game.startPlayerId === opponent.playerId && (
-                <span className="start-player-badge">✦ スタート</span>
-              )}
-              {game.blackStarHolderPlayerId === opponent.playerId && (
-                <span className="black-star-badge">★ 黒い星</span>
-              )}
-              <span>手札 {opponent.handCount}枚</span>
-            </div>
-          </header>
-          <StarlightTokens {...opponent.starlight} />
-          <div className="hand opponent-hand" aria-label="相手の手札">
-            {opponent.hand.map((card, index) => (
-              <GameCard
-                key={`${card.color}-${index}`}
-                card={card}
-                faceDown
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        <section className="tabletop-column" aria-label="対戦卓">
+          {opponent && (
+            <section className="player-rack opponent-rack">
+              <header className="player-summary">
+                <div>
+                  <span className="player-role">対戦相手</span>
+                  <strong>{opponent.displayName}</strong>
+                </div>
+                <div className="player-markers">
+                  {game.startPlayerId === opponent.playerId && (
+                    <span className="start-player-mark">
+                      スタートプレイヤー
+                    </span>
+                  )}
+                  {game.blackStarHolderPlayerId === opponent.playerId && (
+                    <span className="black-star-mark">黒い星</span>
+                  )}
+                  <span>手札 {opponent.handCount}枚</span>
+                </div>
+              </header>
+              <StarlightTokens {...opponent.starlight} />
+              <div className="hand opponent-hand" aria-label="相手の手札">
+                {opponent.hand.map((card, index) => (
+                  <GameCard
+                    key={`${card.color}-${index}`}
+                    card={card}
+                    faceDown
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
-      <section className="table-area" aria-label="中央の盤面">
-        <div className="table-status">
-          <span className="black-star-marker" key={`${blackStarHolderName}-${game.version}`}>
-            <img src="/assets/game-pieces/black-star.png" alt="" />
-          </span>
-          <span>黒い星: {blackStarHolderName}</span>
-        </div>
-        <div className="table-columns">
-          <section className="pile-zone deck-pile" aria-label="山札">
-            <h2>山札</h2>
-            <div className="card-stack" aria-hidden="true">
-              <span />
-              <span />
-              {game.deck.topColor && (
-                <GameCard card={{ color: game.deck.topColor }} faceDown />
-              )}
+          <section className="table-area" aria-label="中央の盤面">
+            <header className="table-heading">
+              <p className="section-code">卓上 / TRICK</p>
+              <h2>場のカード</h2>
+            </header>
+            <div className="table-columns">
+              <section className="pile-zone deck-pile" aria-label="山札">
+                <h3>山札</h3>
+                <div className="card-stack" aria-hidden="true">
+                  <span />
+                  <span />
+                  {game.deck.topColor && (
+                    <GameCard card={{ color: game.deck.topColor }} faceDown />
+                  )}
+                </div>
+                <strong>{game.deck.remainingCount}枚</strong>
+                <small>トップ: {colorLabel(game.deck.topColor)}</small>
+              </section>
+
+              <section className="trick-zone" aria-label="プレイされたカード">
+                <div className="played-cards">
+                  {game.playedCards.length === 0 && (
+                    <span className="empty-table">
+                      まだカードはありません
+                    </span>
+                  )}
+                  {game.playedCards.map((played, index) => {
+                    const cardId = played.card.cardId;
+                    const canSelect =
+                      cardId !== undefined &&
+                      selectablePlayedCards.has(cardId);
+                    return (
+                      <div
+                        key={`${played.actor}-${cardId ?? index}`}
+                        className="played-card-slot"
+                      >
+                        <small>{actorName(game, played.actor)}</small>
+                        <GameCard
+                          card={played.card}
+                          selected={cardId === selectedCardId}
+                          onClick={
+                            canSelect
+                              ? () => {
+                                  setSelectedCardId(cardId);
+                                  audio.playSfx("select");
+                                }
+                              : undefined
+                          }
+                          disabled={busy}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="pile-zone discard-pile" aria-label="捨て札">
+                <h3>捨て札</h3>
+                {game.discardTop ? (
+                  <GameCard card={game.discardTop} />
+                ) : (
+                  <span className="empty-table">なし</span>
+                )}
+              </section>
             </div>
-            <strong>{game.deck.remainingCount}枚</strong>
-            <small>トップ: {colorLabel(game.deck.topColor)}</small>
           </section>
 
-          <section className="trick-zone" aria-label="プレイされたカード">
-            <h2>場のカード</h2>
-            <div className="played-cards">
-              {game.playedCards.length === 0 && (
-                <span className="empty-table">まだカードはありません</span>
-              )}
-              {game.playedCards.map((played, index) => {
-                const cardId = played.card.cardId;
-                const canSelect =
-                  cardId !== undefined && selectablePlayedCards.has(cardId);
-                return (
-                  <div
-                    key={`${played.actor}-${cardId ?? index}`}
-                    className="played-card-slot"
-                  >
-                    <small>{actorName(game, played.actor)}</small>
+          {viewer && (
+            <section className="player-rack viewer-rack">
+              <header className="player-summary">
+                <div>
+                  <span className="player-role">あなた</span>
+                  <strong>{viewer.displayName}</strong>
+                </div>
+                <div className="player-markers">
+                  {game.startPlayerId === viewer.playerId && (
+                    <span className="start-player-mark">
+                      スタートプレイヤー
+                    </span>
+                  )}
+                  {game.blackStarHolderPlayerId === viewer.playerId && (
+                    <span className="black-star-mark">黒い星</span>
+                  )}
+                  <span>手札 {viewer.handCount}枚</span>
+                </div>
+              </header>
+              <StarlightTokens {...viewer.starlight} />
+              <div className="hand" aria-label="あなたの手札">
+                {viewer.hand.map((card, index) => {
+                  const cardId = card.cardId;
+                  const canSelect =
+                    cardId !== undefined &&
+                    game.availableActions.playableCardIds.includes(cardId);
+                  return (
                     <GameCard
-                      card={played.card}
+                      key={cardId ?? index}
+                      card={card}
                       selected={cardId === selectedCardId}
                       onClick={
                         canSelect
@@ -354,47 +414,17 @@ export function GamePage() {
                       }
                       disabled={busy}
                     />
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="pile-zone discard-pile" aria-label="捨て札">
-            <h2>捨て札</h2>
-            {game.discardTop ? (
-              <GameCard card={game.discardTop} />
-            ) : (
-              <span className="empty-table">なし</span>
-            )}
-          </section>
-        </div>
-      </section>
-
-      <section className="collections-panel panel" aria-label="獲得カード">
-        <h2>獲得カード</h2>
-        <div className="collection-grid">
-          {game.players.map((player) => (
-            <section key={player.playerId}>
-              <h3>
-                {player.displayName}
-                {player.isViewer ? "（あなた）" : ""}
-              </h3>
-              <div className="collection-cards">
-                {player.collection.length === 0 ? (
-                  <span className="empty-collection">まだありません</span>
-                ) : (
-                  player.collection.map((card, index) => (
-                    <GameCard key={card.cardId ?? index} card={card} />
-                  ))
-                )}
+                  );
+                })}
               </div>
             </section>
-          ))}
-        </div>
-      </section>
+          )}
+        </section>
 
-      <section className="controls panel" aria-label="操作">
+        <CollectionLedger players={game.players} />
+      </div>
+
+      <section className="action-dock" aria-label="操作" aria-busy={busy}>
         {selectedCardId && (
           <div className="selection-confirmation">
             <span>カードを選択中</span>
@@ -404,7 +434,7 @@ export function GamePage() {
               disabled={busy}
               onClick={() => void confirmSelection()}
             >
-              {confirmLabel(game)}
+              {busy ? "確定中…" : confirmLabel(game)}
             </button>
             <button
               type="button"
@@ -423,7 +453,7 @@ export function GamePage() {
             disabled={busy || !game.availableActions.canDrawCards}
             onClick={() => void command({ type: "DRAW_CARDS" })}
           >
-            星明りで{drawCount}枚引く
+            {busy ? "処理中…" : `星明りで${drawCount}枚引く`}
           </button>
           <button
             type="button"
@@ -431,7 +461,7 @@ export function GamePage() {
             disabled={busy || !game.availableActions.canEndTurn}
             onClick={() => void command({ type: "END_TURN" })}
           >
-            手番終了
+            {busy ? "処理中…" : "手番終了"}
           </button>
           <button
             type="button"
@@ -446,54 +476,10 @@ export function GamePage() {
         {error && <p className="error-message">{error}</p>}
       </section>
 
-      {viewer && (
-        <section className="player-zone viewer-zone">
-          <header className="player-summary">
-            <div>
-              <strong>{viewer.displayName}</strong>
-              <span className="player-role">あなた</span>
-            </div>
-            <div className="player-badges">
-              {game.startPlayerId === viewer.playerId && (
-                <span className="start-player-badge">✦ スタート</span>
-              )}
-              {game.blackStarHolderPlayerId === viewer.playerId && (
-                <span className="black-star-badge">★ 黒い星</span>
-              )}
-              <span>手札 {viewer.handCount}枚</span>
-            </div>
-          </header>
-          <StarlightTokens {...viewer.starlight} />
-          <div className="hand" aria-label="あなたの手札">
-            {viewer.hand.map((card, index) => {
-              const cardId = card.cardId;
-              const canSelect =
-                cardId !== undefined &&
-                game.availableActions.playableCardIds.includes(cardId);
-              return (
-                <GameCard
-                  key={cardId ?? index}
-                  card={card}
-                  selected={cardId === selectedCardId}
-                  onClick={
-                    canSelect
-                      ? () => {
-                          setSelectedCardId(cardId);
-                          audio.playSfx("select");
-                        }
-                      : undefined
-                  }
-                  disabled={busy}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       {game.result && (
         <div className="result-overlay">
-          <section className="panel">
+          <section className="result-sheet">
+            <p className="section-code">対戦結果</p>
             <h2>
               {game.result.winnerPlayerId === game.viewerPlayerId
                 ? "勝利"
