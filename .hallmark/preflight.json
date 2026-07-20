@@ -1,0 +1,17 @@
+{
+  "date": "2026-07-20",
+  "framework": "React 19 + TypeScript + Vite 8",
+  "font_stack": "Inter/Noto Sans/system body with Georgia/Yu Mincho headings",
+  "palette": "hard-coded dark blue and purple gradients with amber controls",
+  "motion": "CSS transitions and Web Audio API; no motion library",
+  "spacing": "raw rem values without named tokens",
+  "scope": "multi-page app",
+  "preserve": [
+    "routes",
+    "authentication",
+    "API behavior",
+    "game rules",
+    "card artwork",
+    "game-piece artwork"
+  ]
+}

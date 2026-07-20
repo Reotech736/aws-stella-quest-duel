@@ -1,0 +1,64 @@
+/* Hallmark · pre-emit critique: P5 H4 E4 S5 R5 V4
+ * genre: editorial · macrostructure: Workbench · design-system: design.md · designed-as-app
+ * theme: custom · vibe: "古い星図・黒鉄・銀・卓上" · axes: dark / roman-serif / chromatic-amber
+ */
+
+:root {
+  --color-paper: oklch(15.5% 0.018 260);
+  --color-paper-2: oklch(19.5% 0.02 257);
+  --color-paper-3: oklch(23.5% 0.022 254);
+  --color-ink: oklch(92% 0.018 84);
+  --color-ink-2: oklch(73% 0.016 78);
+  --color-muted: oklch(58% 0.018 250);
+  --color-rule: oklch(42% 0.022 250);
+  --color-rule-2: oklch(29% 0.02 252);
+  --color-silver: oklch(75% 0.012 250);
+  --color-accent: oklch(79% 0.14 78);
+  --color-accent-ink: oklch(18% 0.026 68);
+  --color-focus: oklch(83% 0.18 82);
+  --color-danger: oklch(67% 0.15 24);
+  --color-danger-surface: oklch(24% 0.055 24);
+  --color-success: oklch(74% 0.1 145);
+  --color-success-surface: oklch(24% 0.04 145);
+  --color-shadow: oklch(6% 0.012 260 / 55%);
+  --color-scrim: oklch(8% 0.018 260 / 88%);
+
+  --font-display: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  --font-body: "BIZ UDPGothic", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: clamp(2rem, 5vw, 3.75rem);
+
+  --leading-tight: 1.08;
+  --leading-body: 1.7;
+  --measure: 68ch;
+
+  --radius-control: 2px;
+  --radius-panel: 4px;
+  --rule-thin: 1px;
+  --rule-strong: 2px;
+
+  --dur-instant: 120ms;
+  --dur-short: 220ms;
+  --dur-medium: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --z-sticky: 20;
+  --z-popover: 40;
+  --z-dialog: 100;
+}
