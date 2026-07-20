@@ -119,6 +119,20 @@ cd frontend
 npm run dev
 ```
 
+LANまたはTailscale越しに確認する場合は、`frontend/.env.development.local`へ開発用プロキシを設定します。API GatewayのURLは実際の`dev`環境の値へ置き換えます。
+
+```dotenv
+VITE_API_BASE_URL=/api
+DEV_API_PROXY_TARGET=https://example.execute-api.ap-northeast-1.amazonaws.com/dev
+```
+
+その後、外部インターフェースで待ち受けます。ブラウザからのAPI通信はViteが中継するため、アクセス元がlocalhost、LAN、TailscaleのどれでもAPI GatewayのCORS設定を変更せずに確認できます。
+
+```bash
+cd frontend
+npm run dev -- --host 0.0.0.0
+```
+
 バックエンドの確認:
 
 ```bash
