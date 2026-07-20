@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
+import { createRequestId } from "../api/request-id";
 import { useAuth } from "../auth/AuthContext";
 import { AudioControls } from "../components/AudioControls";
 import { RulesDialog } from "../components/RulesDialog";
@@ -35,7 +36,7 @@ export function HomePage() {
     setError("");
     try {
       const token = await auth.accessToken();
-      const response = await api.createRoom(token, crypto.randomUUID());
+      const response = await api.createRoom(token, createRequestId());
       navigate(`/rooms/${response.data.room.roomId}`);
     } catch (cause) {
       setError(
@@ -57,7 +58,7 @@ export function HomePage() {
       const response = await api.joinRoom(
         token,
         roomId.trim().toUpperCase(),
-        crypto.randomUUID(),
+        createRequestId(),
       );
       navigate(`/rooms/${response.data.room.roomId}`);
     } catch (cause) {

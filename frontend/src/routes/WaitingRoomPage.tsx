@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
+import { createRequestId } from "../api/request-id";
 import type { RoomView } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { AudioControls } from "../components/AudioControls";
@@ -58,7 +59,7 @@ export function WaitingRoomPage() {
     setBusy(true);
     try {
       const token = await auth.accessToken();
-      await api.leaveRoom(token, room, crypto.randomUUID());
+      await api.leaveRoom(token, room, createRequestId());
       navigate("/", { replace: true });
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "VERSION_CONFLICT") {
@@ -80,7 +81,7 @@ export function WaitingRoomPage() {
         token,
         room,
         startMethod,
-        crypto.randomUUID(),
+        createRequestId(),
       );
       navigate(`/games/${response.data.game.gameId}`, { replace: true });
     } catch (cause) {

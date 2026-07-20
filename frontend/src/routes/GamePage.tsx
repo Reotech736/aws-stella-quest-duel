@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
+import { createRequestId } from "../api/request-id";
 import type { GameView } from "../api/types";
 import { useAudio } from "../audio/AudioContext";
 import { useAuth } from "../auth/AuthContext";
@@ -168,7 +169,7 @@ export function GamePage() {
         token,
         game,
         value,
-        crypto.randomUUID(),
+        createRequestId(),
       );
       const nextGame = response.data.game;
       const nextViewer = nextGame.players.find((player) => player.isViewer);
@@ -217,7 +218,7 @@ export function GamePage() {
     setBusy(true);
     try {
       const token = await auth.accessToken();
-      const response = await api.resign(token, game, crypto.randomUUID());
+      const response = await api.resign(token, game, createRequestId());
       setGame(response.data.game);
     } catch (cause) {
       setError(
