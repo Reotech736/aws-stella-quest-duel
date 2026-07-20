@@ -4,9 +4,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { RoomView } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { AudioControls } from "../components/AudioControls";
+import { RulesDialog } from "../components/RulesDialog";
 
 function isClosedRoom(room: RoomView): boolean {
   return room.status === "CLOSED" || room.status === "EXPIRED";
+}
+
+function roomStatusLabel(room: RoomView | null): string {
+  if (room === null) return "ルーム情報を確認しています";
+  if (room.status === "READY") return "2人そろいました";
+  if (room.status === "WAITING") return "対戦相手を待っています";
+  return "ルームを終了しています";
 }
 
 export function WaitingRoomPage() {
@@ -82,41 +91,72 @@ export function WaitingRoomPage() {
   }
 
   return (
-    <main className="page-shell narrow-shell">
-      <section className="panel room-panel">
-        <p className="eyebrow">WAITING ROOM</p>
-        <h1 className="room-code">{roomId}</h1>
-        <p>このIDを対戦相手に共有してください。</p>
-        <div className="player-slots">
+    <main className="app-shell room-shell">
+      <header className="app-masthead">
+        <div className="wordmark">
+          <span>STELLA QUEST</span>
+          <strong>対戦準備</strong>
+        </div>
+        <div className="utility-actions">
+          <AudioControls />
+          <RulesDialog />
+        </div>
+      </header>
+
+      <section className="match-docket" aria-labelledby="room-title">
+        <header className="docket-heading">
           <div>
+            <p className="section-code">ルームID</p>
+            <h1 id="room-title" className="room-code">{roomId}</h1>
+          </div>
+          <p className="room-status" aria-live="polite">
+            {roomStatusLabel(room)}
+          </p>
+        </header>
+
+        <p className="room-instruction">
+          このIDを対戦相手へ共有してください。カードはゲーム開始後に配られます。
+        </p>
+
+        <div className="seat-map" aria-label="参加プレイヤー">
+          <section className="seat owner-seat">
             <span>ルーム作成者</span>
             <strong>{room?.owner.displayName ?? "読み込み中"}</strong>
-          </div>
-          <div>
+          </section>
+          <span className="versus-mark" aria-hidden="true">対</span>
+          <section className="seat guest-seat">
             <span>参加者</span>
             <strong>{room?.guest?.displayName ?? "参加待ち"}</strong>
-          </div>
+          </section>
         </div>
-        {room?.viewerRole === "OWNER" && (
-          <label>
-            スタートプレイヤー
-            <select
-              value={startMethod}
-              onChange={(event) =>
-                setStartMethod(
-                  event.target.value as typeof startMethod,
-                )
-              }
-            >
-              <option value="RANDOM">ランダム</option>
-              <option value="OWNER_FIRST">自分から</option>
-              <option value="GUEST_FIRST">相手から</option>
-            </select>
-          </label>
-        )}
-        <div className="button-row">
-          <button className="text-button" disabled={busy} onClick={() => void leave()}>
-            退出
+
+        <section className="start-console" aria-labelledby="start-console-title">
+          <div>
+            <p className="section-code">開始手順</p>
+            <h2 id="start-console-title">スタートプレイヤーを決める</h2>
+          </div>
+          {room?.viewerRole === "OWNER" ? (
+            <label>
+              決め方
+              <select
+                value={startMethod}
+                onChange={(event) =>
+                  setStartMethod(event.target.value as typeof startMethod)
+                }
+              >
+                <option value="RANDOM">ランダム</option>
+                <option value="OWNER_FIRST">自分から</option>
+                <option value="GUEST_FIRST">相手から</option>
+              </select>
+            </label>
+          ) : (
+            <p>ルーム作成者が開始方法を選びます。</p>
+          )}
+        </section>
+
+        <footer className="docket-actions">
+          <button className="text-button danger" disabled={busy} onClick={() => void leave()}>
+            {busy ? "処理中…" : "ルームを退出"}
           </button>
           {room?.viewerRole === "OWNER" && (
             <button
@@ -124,10 +164,11 @@ export function WaitingRoomPage() {
               disabled={busy || room.status !== "READY"}
               onClick={() => void start()}
             >
-              ゲーム開始
+              {busy ? "開始中…" : "ゲーム開始"}
             </button>
           )}
-        </div>
+        </footer>
+
         {error && <p className="error-message">{error}</p>}
       </section>
     </main>

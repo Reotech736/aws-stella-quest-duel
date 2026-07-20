@@ -95,7 +95,7 @@ describe("WaitingRoomPage", () => {
     );
 
     await screen.findByText("player2");
-    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+    fireEvent.click(screen.getByRole("button", { name: "ルームを退出" }));
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith("/", { replace: true });
