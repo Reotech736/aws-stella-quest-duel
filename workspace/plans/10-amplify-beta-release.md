@@ -8,7 +8,7 @@ Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の
 
 ## 現在の進捗
 
-状態: ローカル公開準備中・AWS未作成
+状態: 公開環境構築済み・2ユーザースモークテスト待ち
 
 - 友人との2ユーザー対戦を実施し、フェーズ9の完了条件を満たした
 - リポジトリルートへ`amplify.yml`を追加した
@@ -16,7 +16,13 @@ Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の
 - Node.js 24で`npm ci`と`npm run build`を実行する構成にした
 - `frontend/dist`を配信成果物に指定した
 - `npm audit fix`を`--force`なしで実行し、修正可能な依存脆弱性を更新した
-- Amplifyアプリ作成、Git接続、共有パスワード、SPA rewrite、CORS変更は未実施
+- Amplifyアプリ`stella-quest-duel-dev`を作成し、GitHubの`main`ブランチを接続した
+- 初回のbuild、deploy、verifyが成功した
+- 共有パスワード、SPA rewrite、自動ビルドを設定した
+- Amplify公開URLをSAMの`AllowedOrigin`へ反映し、スタックが`UPDATE_COMPLETE`になった
+- 共有パスワードとCognitoログインを通過し、1ユーザーでルームを作成できることを確認した
+- CORS preflightとCloudWatch Logsを確認し、公開確認時点で未解決のエラーがないことを確認した
+- 公開URLからの2ユーザースモークテストは未実施
 
 ## 現在の前提
 
@@ -24,10 +30,12 @@ Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の
 - Amplifyでビルドする対象は`frontend`だけ
 - フロントエンドはReact + TypeScript + ViteのSPA
 - AWSバックエンドの`dev`スタックはデプロイ済み
-- APIのCORSは`http://localhost:5173`だけを許可している
-- Amplifyアプリは未作成
-- 公開候補ブランチは`main`だが、Git接続時に確定する
-- Amplify URL確定後にSAMの`AllowedOrigin`を更新する必要がある
+- AmplifyアプリIDは`d1n2ws1ifgcnxo`
+- 公開ブランチは`main`
+- 公開URLは`https://main.d1n2ws1ifgcnxo.amplifyapp.com`
+- `main`の自動ビルドは有効
+- APIのCORSはAmplify公開URLだけを許可している
+- ローカル実API接続にはVite開発用プロキシを使用する
 
 ## 開始条件
 
@@ -44,7 +52,7 @@ Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の
 - 公開ブランチへ共有ユーザー名と共有パスワードを設定する
 - Amplifyの共有認証情報はGitや`.env`へ保存しない
 - Cognitoの自己登録は引き続き無効とする
-- 自動ビルドの有効・無効は、公開対象ブランチを決めるときに確認する
+- `main`の自動ビルドを有効にし、通常作業は短命ブランチで行う
 
 ## ビルド設定
 
@@ -102,19 +110,37 @@ React Routerの`/rooms/...`や`/games/...`を直接開いても404にならな�
 
 AWSリソースを作成・変更する各段階では、事前にユーザー確認を取ります。
 
-1. `amplify.yml`を含む変更を検証し、Gitへ反映する。
-2. Gitの公開対象ブランチと最新コミットを確認する。
-3. Amplifyアプリを作成し、リポジトリと`frontend`を接続する。
-4. build specificationと公開環境変数を確認する。
-5. 初回ビルドを実行し、生成されたAmplify URLを確認する。
-6. 公開ブランチへ共有パスワードを設定する。
-7. SPA rewriteを設定し、直接URLを確認する。
-8. Amplify URLをSAMの`AllowedOrigin`へ指定して変更セットを作成する。
-9. CORS変更だけであることを確認し、変更セットを実行する。
-10. 公開URLから2ユーザーのスモークテストを実施する。
-11. CloudWatch Logs、Amplifyのビルドログ、Budgetを確認する。
+1. [x] `amplify.yml`を含む変更を検証し、Gitへ反映する。
+2. [x] Gitの公開対象ブランチと最新コミットを確認する。
+3. [x] Amplifyアプリを作成し、リポジトリと`frontend`を接続する。
+4. [x] build specificationと公開環境変数を確認する。
+5. [x] 初回ビルドを実行し、生成されたAmplify URLを確認する。
+6. [x] 公開ブランチへ共有パスワードを設定する。
+7. [x] SPA rewriteを設定し、直接URLを確認する。
+8. [x] Amplify URLをSAMの`AllowedOrigin`へ指定して変更セットを作成する。
+9. [x] CORS変更だけであることを確認し、変更セットを実行する。
+10. [ ] 公開URLから2ユーザーのスモークテストを実施する。
+11. [ ] スモークテスト後にCloudWatch Logs、Amplifyのビルドログ、Budgetを最終確認する。
 
 Amplify URLが確定するまでCORSを推測値で変更しません。CORSをAmplify URLへ切り替えた後、ローカルの`http://localhost:5173`から実APIへ接続できなくなることは限定ベータ環境の方針として許容します。ローカル接続も維持する必要が生じた場合は、複数オリジン対応を別途設計します。
+
+## 次回再開地点
+
+公開URLを通常ウィンドウとプライベートウィンドウで開き、別々のCognitoユーザーを使用します。共有パスワードやCognito利用者の認証情報はドキュメントやログへ残しません。
+
+最小スモークテスト:
+
+1. 2ユーザーが共有パスワードを通過し、それぞれCognitoへログインする。
+2. ユーザー1がルームを作成し、ユーザー2が6桁のルームIDで参加する。
+3. ユーザー1の待機画面へ参加者が反映されることを確認する。
+4. 開始方法を選択し、ゲームを開始する。
+5. 両ユーザーが少なくとも1枚ずつカードをプレイする。
+6. 待機ルームURLとゲームURLを再読込し、状態を復元できることを確認する。
+7. 投了でゲームを終了し、両ユーザーがホームへ戻れることを確認する。
+8. CloudWatch Logsで`INTERNAL_ERROR`や予期しない`ERROR`がないことを確認する。
+9. 問題がなければ本planの完了条件を更新し、フェーズ10を完了にする。
+
+テスト中に不具合が見つかった場合は、`main`へ直接修正を積まず、`main`から短命な`fix/*`または`codex/*`ブランチを作成します。修正、ローカル検証、Pull Requestの順で進め、`main`へのマージによるAmplify自動デプロイ後に再確認します。
 
 ## スモークテスト
 
