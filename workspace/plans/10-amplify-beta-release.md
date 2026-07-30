@@ -6,6 +6,18 @@ UI改善後のReact SPAをAWS Amplify Hostingへ配置し、管理者が招待�
 
 Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の認証、6桁のルームIDは対戦相手との合流に使用します。それぞれを別の防御層として扱います。
 
+## 現在の進捗
+
+状態: ローカル公開準備中・AWS未作成
+
+- 友人との2ユーザー対戦を実施し、フェーズ9の完了条件を満たした
+- リポジトリルートへ`amplify.yml`を追加した
+- `frontend`をmonorepoのアプリルートに指定した
+- Node.js 24で`npm ci`と`npm run build`を実行する構成にした
+- `frontend/dist`を配信成果物に指定した
+- `npm audit fix`を`--force`なしで実行し、修正可能な依存脆弱性を更新した
+- Amplifyアプリ作成、Git接続、共有パスワード、SPA rewrite、CORS変更は未実施
+
 ## 現在の前提
 
 - Gitリポジトリには`frontend`、`backend`、`infrastructure`が同居している
@@ -13,7 +25,8 @@ Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の
 - フロントエンドはReact + TypeScript + ViteのSPA
 - AWSバックエンドの`dev`スタックはデプロイ済み
 - APIのCORSは`http://localhost:5173`だけを許可している
-- Amplifyアプリと公開ブランチは未作成
+- Amplifyアプリは未作成
+- 公開候補ブランチは`main`だが、Git接続時に確定する
 - Amplify URL確定後にSAMの`AllowedOrigin`を更新する必要がある
 
 ## 開始条件
@@ -35,17 +48,28 @@ Amplifyの共有パスワードはアプリ入口、Cognitoは利用者本人の
 
 ## ビルド設定
 
-このリポジトリは複数のプロジェクトを含むため、Amplifyでは`frontend`をアプリルートとして指定します。設定を再現できるように、実装時にはリポジトリルートの`amplify.yml`で管理する案を優先します。
+このリポジトリは複数のプロジェクトを含むため、Amplifyでは`frontend`をアプリルートとして指定します。設定を再現できるように、リポジトリルートの`amplify.yml`で管理します。
 
 想定する処理:
 
-1. `frontend`で`npm ci`を実行する。
-2. `npm run build`を実行する。
-3. `frontend/dist`を成果物として配信する。
+1. Amazon Linux 2023のビルドイメージで`nvm use 24`を実行する。
+2. `frontend`で`npm ci`を実行する。
+3. `npm run build`を実行する。
+4. `frontend/dist`を成果物として配信する。
 
-Amplifyのmonorepo設定では、`appRoot`と`AMPLIFY_MONOREPO_APP_ROOT`を同じ`frontend`にします。実際の初回設定時はAmplifyが生成したbuild specificationとの差分を確認してから`amplify.yml`を追加します。
+Amplifyのmonorepo設定では、`appRoot`と`AMPLIFY_MONOREPO_APP_ROOT`を同じ`frontend`にします。Amplifyアプリ作成時にAmazon Linux 2023のビルドイメージを選び、リポジトリの`amplify.yml`が検出されていることを確認します。
 
 参考: [Configuring monorepo build settings](https://docs.aws.amazon.com/amplify/latest/userguide/monorepo-configuration.html)
+
+参考: [I need to update my application's Node.js version](https://docs.aws.amazon.com/amplify/latest/userguide/troubleshooting-general.html#troubleshooting-general-node-version)
+
+## 依存関係の監査
+
+限定ベータ公開準備時に`npm audit`を実行し、`--force`なしで修正できる`fast-xml-parser`、`postcss`、`brace-expansion`などの更新を反映しました。
+
+監査にはReact RouterのRSCモードに対するCSRFの指摘が残ります。現在のフロントエンドは静的なVite SPAであり、React Server Componentsやサーバー側Actionを使用していないため、指摘された実行経路はありません。`npm audit fix --force`が提示する旧版への変更は行わず、React Router側の修正版が通常の更新経路で利用可能になった時点で再確認します。
+
+参考: [React Router: RSC Mode CSRF Bypass Allows Action Execution Before 400 Response](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)
 
 ## 環境変数
 
@@ -78,16 +102,17 @@ React Routerの`/rooms/...`や`/games/...`を直接開いても404にならな�
 
 AWSリソースを作成・変更する各段階では、事前にユーザー確認を取ります。
 
-1. Gitの公開対象ブランチと最新コミットを確認する。
-2. Amplifyアプリを作成し、リポジトリと`frontend`を接続する。
-3. build specificationと公開環境変数を確認する。
-4. 初回ビルドを実行し、生成されたAmplify URLを確認する。
-5. 公開ブランチへ共有パスワードを設定する。
-6. SPA rewriteを設定し、直接URLを確認する。
-7. Amplify URLをSAMの`AllowedOrigin`へ指定して変更セットを作成する。
-8. CORS変更だけであることを確認し、変更セットを実行する。
-9. 公開URLから2ユーザーのスモークテストを実施する。
-10. CloudWatch Logs、Amplifyのビルドログ、Budgetを確認する。
+1. `amplify.yml`を含む変更を検証し、Gitへ反映する。
+2. Gitの公開対象ブランチと最新コミットを確認する。
+3. Amplifyアプリを作成し、リポジトリと`frontend`を接続する。
+4. build specificationと公開環境変数を確認する。
+5. 初回ビルドを実行し、生成されたAmplify URLを確認する。
+6. 公開ブランチへ共有パスワードを設定する。
+7. SPA rewriteを設定し、直接URLを確認する。
+8. Amplify URLをSAMの`AllowedOrigin`へ指定して変更セットを作成する。
+9. CORS変更だけであることを確認し、変更セットを実行する。
+10. 公開URLから2ユーザーのスモークテストを実施する。
+11. CloudWatch Logs、Amplifyのビルドログ、Budgetを確認する。
 
 Amplify URLが確定するまでCORSを推測値で変更しません。CORSをAmplify URLへ切り替えた後、ローカルの`http://localhost:5173`から実APIへ接続できなくなることは限定ベータ環境の方針として許容します。ローカル接続も維持する必要が生じた場合は、複数オリジン対応を別途設計します。
 
