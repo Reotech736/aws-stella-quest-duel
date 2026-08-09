@@ -9,6 +9,7 @@ type GameStatusRailProps = {
   readonly leadColor: string | null;
   readonly trumpColor: string | null;
   readonly blackStarHolderName: string;
+  readonly activityLog: readonly string[];
 };
 
 export function GameStatusRail({
@@ -17,6 +18,7 @@ export function GameStatusRail({
   leadColor,
   trumpColor,
   blackStarHolderName,
+  activityLog,
 }: GameStatusRailProps) {
   return (
     <aside className="status-rail" aria-labelledby="status-rail-title">
@@ -45,7 +47,7 @@ export function GameStatusRail({
 
       <section className="black-star-state" aria-label={`黒い星: ${blackStarHolderName}`}>
         <img
-          key={`${blackStarHolderName}-${game.version}`}
+          key={blackStarHolderName}
           src="/assets/game-pieces/black-star.png"
           alt=""
         />
@@ -53,6 +55,19 @@ export function GameStatusRail({
           <span>黒い星</span>
           <strong>{blackStarHolderName}</strong>
         </div>
+      </section>
+
+      <section className="activity-ledger" aria-labelledby="activity-ledger-title">
+        <h3 id="activity-ledger-title">直近の対戦記録</h3>
+        {activityLog.length === 0 ? (
+          <p>まだ記録はありません。</p>
+        ) : (
+          <ol>
+            {activityLog.slice(-5).reverse().map((entry, index) => (
+              <li key={`${entry}-${index}`}>{entry}</li>
+            ))}
+          </ol>
+        )}
       </section>
 
       <div className="rail-tools" aria-label="ゲーム設定">

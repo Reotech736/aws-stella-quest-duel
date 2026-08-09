@@ -18,6 +18,12 @@ import {
   trumpColor,
 } from "../game/presentation";
 
+const autoEndTurnStorageKey = "stella-quest-duel.auto-end-turn";
+
+function loadAutoEndTurn(): boolean {
+  return window.localStorage.getItem(autoEndTurnStorageKey) === "true";
+}
+
 function instruction(game: GameView): string {
   if (game.status !== "IN_PROGRESS") {
     return "ゲームは終了しました。結果を確認してください。";
@@ -93,6 +99,38 @@ function selectionCommand(
   }
 }
 
+function roundResultMessage(previous: GameView, current: GameView): string | null {
+  if (previous.playedCards.length < 3 || current.playedCards.length !== 0) {
+    return null;
+  }
+  if (previous.playedCards.every((played) => played.card.color === "REST")) {
+    return "全員が休憩カードを出したため、このラウンドは勝者なしです。";
+  }
+  if (current.blackStarHolderPlayerId === null) {
+    return "ダミーがラウンドに勝利しました。";
+  }
+  return `${playerName(current, current.blackStarHolderPlayerId)}さんがラウンドに勝利しました。`;
+}
+
+function lightLossMessages(previous: GameView, current: GameView): string[] {
+  return current.players.flatMap((player) => {
+    const before = previous.players.find((candidate) => candidate.playerId === player.playerId);
+    if (before === undefined || player.starlight.light >= before.starlight.light) return [];
+    const loss = before.starlight.light - player.starlight.light;
+    const addedCard = player.collection.find(
+      (card) => !before.collection.some((existing) => existing.cardId === card.cardId),
+    );
+    const duplicate =
+      addedCard?.number !== undefined &&
+      before.collection.some((card) => card.number === addedCard.number);
+    const subject = player.isViewer ? "あなた" : `${player.displayName}さん`;
+    if (duplicate) {
+      return [`${subject}は数字${addedCard.number}を重複して獲得したため、光を${loss}つ失いました。`];
+    }
+    return [`${subject}の光が${loss}つ、闇面になりました。`];
+  });
+}
+
 export function GamePage() {
   const { gameId = "" } = useParams();
   const navigate = useNavigate();
@@ -103,6 +141,10 @@ export function GamePage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [autoEndTurn, setAutoEndTurn] = useState(loadAutoEndTurn);
+  const [transientMessage, setTransientMessage] = useState("");
+  const [activityLog, setActivityLog] = useState<string[]>([]);
+  const [showResult, setShowResult] = useState(true);
   const previousGameRef = useRef<GameView | null>(null);
 
   const refresh = useCallback(async () => {
@@ -136,26 +178,56 @@ export function GamePage() {
     if (previous !== null && previous.version !== game.version) {
       const previousViewer = previous.players.find((player) => player.isViewer);
       const currentViewer = game.players.find((player) => player.isViewer);
+      const roundMessage = roundResultMessage(previous, game);
+      const lightMessages = lightLossMessages(previous, game);
+      const transitionMessages = [roundMessage, ...lightMessages].filter(
+        (message): message is string => message !== null,
+      );
+      if (transitionMessages.length > 0) {
+        setActivityLog((entries) => [...entries, ...transitionMessages].slice(-12));
+        setTransientMessage(transitionMessages.join(" "));
+      }
       if (
         game.status !== "IN_PROGRESS" &&
         previous.status === "IN_PROGRESS"
       ) {
-        audio.playSfx("gameEnd");
+        audio.playSfx(
+          game.result?.winnerPlayerId === game.viewerPlayerId
+            ? "gameWin"
+            : "gameLoss",
+        );
+        setShowResult(true);
       } else if (
         currentViewer !== undefined &&
         previousViewer !== undefined &&
         currentViewer.starlight.light < previousViewer.starlight.light
       ) {
         audio.playSfx("lightLost");
+      } else if (roundMessage !== null) {
+        audio.playSfx("round");
       } else if (
         game.currentActorPlayerId === game.viewerPlayerId &&
         previous.currentActorPlayerId !== previous.viewerPlayerId
       ) {
         audio.playSfx("turn");
+        setTransientMessage("あなたの手番です。次の操作を確認してください。");
+      } else if (
+        game.currentActorPlayerId === game.viewerPlayerId &&
+        previous.phase !== game.phase &&
+        (game.phase === "AWAITING_COLLECTION_CHOICE" ||
+          game.phase === "AWAITING_DISCARD_TOP_CHOICE")
+      ) {
+        setTransientMessage(instruction(game));
       }
     }
     previousGameRef.current = game;
   }, [audio, game]);
+
+  useEffect(() => {
+    if (transientMessage === "") return;
+    const timer = window.setTimeout(() => setTransientMessage(""), 3_200);
+    return () => window.clearTimeout(timer);
+  }, [transientMessage]);
 
   async function command(value: Record<string, unknown>) {
     if (!game || busy) return;
@@ -171,9 +243,26 @@ export function GamePage() {
         value,
         createRequestId(),
       );
-      const nextGame = response.data.game;
-      const nextViewer = nextGame.players.find((player) => player.isViewer);
+      let nextGame = response.data.game;
+      const playedGame = nextGame;
       const messages: string[] = [];
+      if (
+        value.type === "PLAY_CARD" &&
+        autoEndTurn &&
+        nextGame.availableActions.canEndTurn
+      ) {
+        const endResponse = await api.command(
+          token,
+          nextGame,
+          { type: "END_TURN" },
+          createRequestId(),
+        );
+        nextGame = endResponse.data.game;
+      }
+      if (value.type === "DRAW_CARDS") {
+        messages.push("星明りを1つ闇面にして、カードを引きました。");
+      }
+      const nextViewer = playedGame.players.find((player) => player.isViewer);
       if (
         value.type === "PLAY_CARD" &&
         previousViewer?.handCount === 1 &&
@@ -192,6 +281,9 @@ export function GamePage() {
         messages.push("感情カードを獲得しました。");
       }
       setNotice(messages.join(" "));
+      if (messages.length > 0) {
+        setActivityLog((entries) => [...entries, ...messages].slice(-12));
+      }
       setSelectedCardId(null);
       setGame(nextGame);
       audio.playSfx("confirm");
@@ -211,6 +303,20 @@ export function GamePage() {
     if (!game || selectedCardId === null) return;
     const value = selectionCommand(game, selectedCardId);
     if (value !== null) await command(value);
+  }
+
+  function selectOrConfirm(cardId: string) {
+    if (selectedCardId === cardId) {
+      void confirmSelection();
+      return;
+    }
+    setSelectedCardId(cardId);
+    audio.playSfx("select");
+  }
+
+  function updateAutoEndTurn(enabled: boolean) {
+    setAutoEndTurn(enabled);
+    window.localStorage.setItem(autoEndTurnStorageKey, String(enabled));
   }
 
   async function resign() {
@@ -272,11 +378,14 @@ export function GamePage() {
           leadColor={currentLeadColor}
           trumpColor={currentTrumpColor}
           blackStarHolderName={blackStarHolderName}
+          activityLog={activityLog}
         />
 
         <section className="tabletop-column" aria-label="対戦卓">
           {opponent && (
-            <section className="player-rack opponent-rack">
+            <section
+              className={`player-rack opponent-rack ${game.currentActorPlayerId === opponent.playerId && game.status === "IN_PROGRESS" ? "is-active-player" : ""}`}
+            >
               <header className="player-summary">
                 <div>
                   <span className="player-role">対戦相手</span>
@@ -289,12 +398,17 @@ export function GamePage() {
                     </span>
                   )}
                   {game.blackStarHolderPlayerId === opponent.playerId && (
-                    <span className="black-star-mark">黒い星</span>
+                    <img
+                      key={`black-star-${opponent.playerId}`}
+                      className="black-star-marker"
+                      src="/assets/game-pieces/black-star.png"
+                      alt="黒い星"
+                    />
                   )}
                   <span>手札 {opponent.handCount}枚</span>
                 </div>
+                <StarlightTokens {...opponent.starlight} />
               </header>
-              <StarlightTokens {...opponent.starlight} />
               <div className="hand opponent-hand" aria-label="相手の手札">
                 {opponent.hand.map((card, index) => (
                   <GameCard
@@ -349,10 +463,7 @@ export function GamePage() {
                           selected={cardId === selectedCardId}
                           onClick={
                             canSelect
-                              ? () => {
-                                  setSelectedCardId(cardId);
-                                  audio.playSfx("select");
-                                }
+                              ? () => selectOrConfirm(cardId)
                               : undefined
                           }
                           disabled={busy}
@@ -375,7 +486,9 @@ export function GamePage() {
           </section>
 
           {viewer && (
-            <section className="player-rack viewer-rack">
+            <section
+              className={`player-rack viewer-rack ${game.currentActorPlayerId === viewer.playerId && game.status === "IN_PROGRESS" ? "is-active-player" : ""}`}
+            >
               <header className="player-summary">
                 <div>
                   <span className="player-role">あなた</span>
@@ -388,12 +501,17 @@ export function GamePage() {
                     </span>
                   )}
                   {game.blackStarHolderPlayerId === viewer.playerId && (
-                    <span className="black-star-mark">黒い星</span>
+                    <img
+                      key={`black-star-${viewer.playerId}`}
+                      className="black-star-marker"
+                      src="/assets/game-pieces/black-star.png"
+                      alt="黒い星"
+                    />
                   )}
                   <span>手札 {viewer.handCount}枚</span>
                 </div>
+                <StarlightTokens {...viewer.starlight} />
               </header>
-              <StarlightTokens {...viewer.starlight} />
               <div className="hand" aria-label="あなたの手札">
                 {viewer.hand.map((card, index) => {
                   const cardId = card.cardId;
@@ -407,10 +525,7 @@ export function GamePage() {
                       selected={cardId === selectedCardId}
                       onClick={
                         canSelect
-                          ? () => {
-                              setSelectedCardId(cardId);
-                              audio.playSfx("select");
-                            }
+                          ? () => selectOrConfirm(cardId)
                           : undefined
                       }
                       disabled={busy}
@@ -425,10 +540,21 @@ export function GamePage() {
         <CollectionLedger players={game.players} />
       </div>
 
+      {transientMessage && (
+        <div className="game-toast" role="status" aria-live="polite">
+          {transientMessage}
+        </div>
+      )}
+
       <section className="action-dock" aria-label="操作" aria-busy={busy}>
+        {game.status === "IN_PROGRESS" && (
+          <p className="dock-instruction" aria-live="polite">
+            {instruction(game)}
+          </p>
+        )}
         {selectedCardId && (
           <div className="selection-confirmation">
-            <span>カードを選択中</span>
+            <span>選択中。同じカードをもう一度押しても確定できます。</span>
             <button
               type="button"
               className="primary-button"
@@ -458,7 +584,7 @@ export function GamePage() {
           </button>
           <button
             type="button"
-            className="primary-button"
+            className={`primary-button ${game.availableActions.canEndTurn ? "end-turn-ready" : ""}`}
             disabled={busy || !game.availableActions.canEndTurn}
             onClick={() => void command({ type: "END_TURN" })}
           >
@@ -473,11 +599,34 @@ export function GamePage() {
             投了
           </button>
         </div>
+        {game.phase === "PLAYER_TURN_BEFORE_PLAY" &&
+          game.currentActorPlayerId === game.viewerPlayerId && (
+            <label className="auto-end-turn-option">
+              <input
+                type="checkbox"
+                checked={autoEndTurn}
+                onChange={(event) => updateAutoEndTurn(event.target.checked)}
+              />
+              <span>
+                <strong>カードを出したら手番を自動終了</strong>
+                <small>プレイ後の追加ドローを行わない設定です。</small>
+              </span>
+            </label>
+          )}
         {notice && <p className="notice-message">{notice}</p>}
         {error && <p className="error-message">{error}</p>}
+        {game.result && !showResult && (
+          <button
+            type="button"
+            className="secondary-button result-reopen"
+            onClick={() => setShowResult(true)}
+          >
+            対戦結果を表示
+          </button>
+        )}
       </section>
 
-      {game.result && (
+      {game.result && showResult && (
         <div className="result-overlay">
           <section className="result-sheet">
             <p className="section-code">対戦結果</p>
@@ -489,13 +638,22 @@ export function GamePage() {
                   : "敗北"}
             </h2>
             <p>終了理由: {resultReason(game.result.endReason)}</p>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => navigate("/", { replace: true })}
-            >
-              ロビーへ戻る
-            </button>
+            <div className="button-row result-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowResult(false)}
+              >
+                盤面を確認する
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => navigate("/", { replace: true })}
+              >
+                ロビーへ戻る
+              </button>
+            </div>
           </section>
         </div>
       )}

@@ -90,7 +90,10 @@ export function HomePage() {
       <section className="lobby-command" aria-labelledby="new-match-title">
         <div className="command-copy">
           <p className="section-code">新しい対戦 / 01</p>
-          <h1 id="new-match-title">星明りを並べ、対戦相手を招く。</h1>
+          <h1 id="new-match-title" aria-label="星明りを並べ、対戦相手を招く。">
+            <span aria-hidden="true">星明りを並べ、</span>
+            <span aria-hidden="true">対戦相手を招く。</span>
+          </h1>
           <p>
             対戦ルームを作ると6桁のIDが発行されます。相手へIDを共有し、
             2人そろったらスタートプレイヤーを決めます。

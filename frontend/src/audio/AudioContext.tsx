@@ -15,7 +15,8 @@ export type SoundEffect =
   | "turn"
   | "round"
   | "lightLost"
-  | "gameEnd";
+  | "gameWin"
+  | "gameLoss";
 
 interface AudioSettings {
   readonly sfxEnabled: boolean;
@@ -70,7 +71,8 @@ const tones: Readonly<
   turn: [523.25, 0.16, "triangle"],
   round: [392, 0.22, "triangle"],
   lightLost: [196, 0.24, "sawtooth"],
-  gameEnd: [783.99, 0.36, "triangle"],
+  gameWin: [783.99, 0.36, "triangle"],
+  gameLoss: [146.83, 0.4, "sawtooth"],
 };
 
 export function AudioProvider({ children }: PropsWithChildren) {

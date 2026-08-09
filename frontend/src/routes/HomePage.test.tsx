@@ -45,4 +45,18 @@ describe("HomePage", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("音設定をモーダルで開いて閉じられる", () => {
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "音設定" }));
+    expect(screen.getByRole("dialog", { name: "音設定" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "音設定" })).not.toBeInTheDocument();
+  });
 });

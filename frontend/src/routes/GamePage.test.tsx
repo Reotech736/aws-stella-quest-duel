@@ -79,6 +79,7 @@ const game: GameView = {
 
 describe("GamePage", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     apiMock.command.mockReset();
     apiMock.game.mockReset();
     apiMock.resign.mockReset();
@@ -155,7 +156,7 @@ describe("GamePage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect((await screen.findAllByText(message)).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("heading", { name: "次にすること" })).toBeInTheDocument();
     expect(screen.getByText("現在")).toBeInTheDocument();
   });
@@ -194,8 +195,90 @@ describe("GamePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "このカードを出す" }));
 
     expect(
-      await screen.findByText("手札が尽きたため、5枚補充されました。"),
-    ).toBeInTheDocument();
+      await screen.findAllByText("手札が尽きたため、5枚補充されました。"),
+    ).not.toHaveLength(0);
+  });
+
+  it("同じカードを2回押すとプレイを確定する", async () => {
+    const afterPlay: GameView = {
+      ...game,
+      version: 2,
+      phase: "PLAYER_TURN_AFTER_PLAY",
+      availableActions: {
+        ...game.availableActions,
+        canPlayCard: false,
+        playableCardIds: [],
+        canEndTurn: true,
+      },
+    };
+    apiMock.game.mockResolvedValue({ data: { game } });
+    apiMock.command.mockResolvedValue({ data: { game: afterPlay } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    const card = await screen.findByRole("button", { name: "青 1" });
+    fireEvent.click(card);
+    expect(apiMock.command).not.toHaveBeenCalled();
+    fireEvent.click(card);
+
+    await waitFor(() => {
+      expect(apiMock.command).toHaveBeenCalledWith(
+        "token",
+        game,
+        { type: "PLAY_CARD", cardId: "B1a" },
+        expect.any(String),
+      );
+    });
+  });
+
+  it("自動終了を選ぶとカードプレイ後に手番を終了する", async () => {
+    const afterPlay: GameView = {
+      ...game,
+      version: 2,
+      phase: "PLAYER_TURN_AFTER_PLAY",
+      availableActions: {
+        ...game.availableActions,
+        canPlayCard: false,
+        playableCardIds: [],
+        canEndTurn: true,
+      },
+    };
+    const afterEnd: GameView = {
+      ...afterPlay,
+      version: 3,
+      currentActorPlayerId: "GUEST",
+      phase: "PLAYER_TURN_BEFORE_PLAY",
+      availableActions: {
+        ...afterPlay.availableActions,
+        canEndTurn: false,
+      },
+    };
+    apiMock.game.mockResolvedValue({ data: { game } });
+    apiMock.command
+      .mockResolvedValueOnce({ data: { game: afterPlay } })
+      .mockResolvedValueOnce({ data: { game: afterEnd } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("checkbox", {
+        name: /カードを出したら手番を自動終了/,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "青 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "このカードを出す" }));
+
+    await waitFor(() => expect(apiMock.command).toHaveBeenCalledTimes(2));
+    expect(apiMock.command.mock.calls[1]?.[2]).toEqual({ type: "END_TURN" });
+    expect(window.localStorage.getItem("stella-quest-duel.auto-end-turn")).toBe("true");
   });
 
   it("星明りを5枚の表裏として表示し、内部の役割名を表示しない", async () => {
@@ -230,9 +313,37 @@ describe("GamePage", () => {
 
     expect(
       screen.getByText(
-        "5枚すべてを光面で始めます。重複収集では、数字1・2は3枚、3・4は2枚、5・6は1枚を闇面にします。",
+        /数字1・2は3つ、3・4は2つ、5・6は1つを闇面にします。/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("ゲーム終了後に結果を閉じて盤面を確認し、再表示できる", async () => {
+    const completed: GameView = {
+      ...game,
+      status: "COMPLETED",
+      phase: "COMPLETED",
+      result: {
+        endReason: "LIGHT_LOST",
+        winnerPlayerId: "GUEST",
+        loserPlayerId: "OWNER",
+      },
+    };
+    apiMock.game.mockResolvedValue({ data: { game: completed } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "盤面を確認する" }),
+    );
+
+    expect(screen.queryByText("敗北")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "対戦結果を表示" }));
+    expect(await screen.findByText("敗北")).toBeInTheDocument();
   });
 
   it("ゲーム終了後にロビーへ戻れる", async () => {
