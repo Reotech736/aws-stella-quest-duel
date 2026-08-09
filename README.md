@@ -74,6 +74,7 @@ AWSの学習を兼ねて、小さく理解しやすいサーバーレスアプ�
 8. 実AWSバックエンドを構築して基本動作を確認する
 9. 限定ベータ公開前のUIを改善する
 10. Amplify Hostingで限定ベータ版を公開する
+11. カスタムドメインで正式サービスを公開する
 
 ## 現在の進捗
 
@@ -87,6 +88,7 @@ AWSの学習を兼ねて、小さく理解しやすいサーバーレスアプ�
 - 実AWSバックエンド構築・基本動作確認: 完了
 - UI改善: 完了
 - Amplify限定ベータ公開: 公開環境構築済み・2ユーザースモークテスト待ち
+- カスタムドメイン正式公開: 未着手（限定ベータ完了後）
 
 ゲームドメイン、DynamoDB永続化、Context/Room API、Game Query / Command API、Cognito認証クライアント、主要画面を実装済みです。SAMで`dev`環境をAWSへデプロイし、Cognitoの2ユーザーを使ってローカルフロントエンドからゲーム終了までの基本動作を確認しました。
 
@@ -95,6 +97,8 @@ AWSの学習を兼ねて、小さく理解しやすいサーバーレスアプ�
 Amplify Hostingへ`main`ブランチを接続し、共有パスワード、Cognitoログイン、SPAリライト、公開URL向けCORSを設定しました。公開URLから1ユーザーでログインしてルームを作成できるところまで確認済みです。次は2ユーザーで参加、ゲーム開始、基本操作、再読込、投了までのスモークテストを行います。アカウント全体のBudgetは設定済みで、プロジェクトタグに絞ったBudgetのIaCは未デプロイです。
 
 `main`へのpushまたはマージはAmplifyの自動デプロイを開始します。通常作業は`main`から短命ブランチを作成し、ローカル確認後にPull Requestでマージします。常設の`develop`ブランチは当面使用しません。
+
+正式公開時のゲームURLは`https://stella-quest-duel.reotech736.com`とします。`reotech736.com`の既存ブログは維持し、ゲーム紹介ページはブログ側でユーザーが作成します。現時点ではカスタムドメインやDNSを変更せず、既存のAmplify URLで限定ベータのスモークテストを継続します。
 
 UIはHallmarkの方針に基づき、`design.md`の「古い星図・黒鉄・銀・卓上」を共通デザインシステムとして使用します。カード、星明りトークン、黒い星は確定済みのピクセルアートを維持します。
 
@@ -180,6 +184,7 @@ SAM管理リソースには、`Project=stella-quest-duel`、`Environment=dev`、
 - `workspace/plans/09-ui-improvement.md`
 - `workspace/plans/09a-hallmark-ui-redesign.md`
 - `workspace/plans/10-amplify-beta-release.md`
+- `workspace/plans/11-custom-domain-release.md`
 - `docs/cost-management.md`
 - `docs/architecture.md`（必要に応じて作成）
 - `docs/rules.md`（必要に応じて作成）
