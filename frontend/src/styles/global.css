@@ -397,8 +397,12 @@ input[type="range"] {
 
 .command-copy h1 {
   display: grid;
-  max-width: 15ch;
+  max-width: none;
   margin-bottom: var(--space-md);
+}
+
+.command-copy h1 > span {
+  white-space: nowrap;
 }
 
 .command-copy > p:not(.section-code) {
@@ -1455,6 +1459,10 @@ button.game-card:not(:disabled):hover,
 }
 
 @media (max-width: 26rem) {
+  .command-copy h1 {
+    font-size: clamp(1.75rem, 9vw, 2rem);
+  }
+
   .entry-intro,
   .auth-sheet,
   .command-copy,
