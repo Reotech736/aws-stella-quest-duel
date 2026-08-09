@@ -10,9 +10,11 @@ describe("StarlightTokens", () => {
     expect(screen.getByRole("img", { name: "星明り: 光3枚、闇2枚" })).toBeInTheDocument();
     expect(
       container.querySelectorAll("img[src='/assets/game-pieces/starlight-light.png']"),
-    ).toHaveLength(3);
+    ).toHaveLength(5);
     expect(
       container.querySelectorAll("img[src='/assets/game-pieces/starlight-dark.png']"),
-    ).toHaveLength(2);
+    ).toHaveLength(5);
+    expect(container.querySelectorAll(".starlight-token.is-light")).toHaveLength(3);
+    expect(container.querySelectorAll(".starlight-token.is-dark")).toHaveLength(2);
   });
 });

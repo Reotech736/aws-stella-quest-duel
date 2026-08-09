@@ -300,6 +300,62 @@ describe("GamePage", () => {
     expect(screen.queryByText("DUMMY")).not.toBeInTheDocument();
   });
 
+  it("黒い星が誰にもないときは卓上中央へ表示する", async () => {
+    apiMock.game.mockResolvedValue({ data: { game } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByLabelText("黒い星は中央")).toBeInTheDocument();
+    expect(screen.getByText("手番")).toBeInTheDocument();
+  });
+
+  it("新しく出たダミーカードを山札からめくる演出後に公開する", async () => {
+    const afterPlay: GameView = {
+      ...game,
+      version: 2,
+      phase: "PLAYER_TURN_AFTER_PLAY",
+      playedCards: [
+        {
+          actor: "OWNER",
+          card: { cardId: "B1a", type: "EMOTION", color: "BLUE", number: 1 },
+        },
+        {
+          actor: "DUMMY",
+          card: { cardId: "G2a", type: "EMOTION", color: "GREEN", number: 2 },
+        },
+      ],
+      availableActions: {
+        ...game.availableActions,
+        canPlayCard: false,
+        playableCardIds: [],
+        canEndTurn: true,
+      },
+    };
+    apiMock.game.mockResolvedValue({ data: { game } });
+    apiMock.command.mockResolvedValue({ data: { game: afterPlay } });
+
+    render(
+      <MemoryRouter>
+        <GamePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "青 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "このカードを出す" }));
+
+    expect(
+      await screen.findByText("ダミーが山札からプレイ"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "緑 2" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("img", { name: "緑 2" }, { timeout: 1_500 }),
+    ).toBeInTheDocument();
+  });
+
   it("ルール画面に正しい重複収集ペナルティを表示する", async () => {
     apiMock.game.mockResolvedValue({ data: { game } });
 

@@ -48,7 +48,8 @@
 - 公開URLからCognitoでログインし、1ユーザーでルームを作成できることを確認した
 - 公開URLから2ユーザーでゲーム終了までのスモークテストを完了した
 - スモークテストのUIフィードバックを`10a-amplify-smoke-test-improvements.md`へ保存し、ローカル改善を実装した
-- 次は改善をAmplifyへ反映し、デスクトップ2ユーザーと実スマートフォンで再テストする
+- 追加のデスクトップフィードバックを`10b-desktop-smoke-test-improvements.md`へ保存し、A〜Cの改善を実装した
+- 次は改善をAmplifyへ反映し、1536×864相当のデスクトップ2ユーザーと実スマートフォンで再テストする
 - 正式公開時のゲームURLを`https://stella-quest-duel.reotech736.com`とする方針を確定した
 - 現時点ではカスタムドメインを設定せず、フェーズ10の完了を優先する
 
@@ -223,6 +224,7 @@ Amplify公開URLでの2ユーザースモークテスト後、手番・フェー
 
 - `workspace/plans/09-ui-improvement.md`
 - `workspace/plans/10a-amplify-smoke-test-improvements.md`
+- `workspace/plans/10b-desktop-smoke-test-improvements.md`
 
 ### 10. Amplify限定ベータ公開
 

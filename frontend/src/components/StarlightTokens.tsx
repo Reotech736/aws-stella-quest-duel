@@ -15,14 +15,16 @@ export function StarlightTokens({ light, dark }: StarlightTokensProps) {
         return (
           <span
             key={index}
-            className={`starlight-token ${isLight ? "light-side" : "dark-side"}`}
+            className={`starlight-token ${isLight ? "is-light" : "is-dark"}`}
             title={isLight ? "光面" : "闇面"}
             aria-hidden="true"
           >
-            <img
-              src={`/assets/game-pieces/starlight-${isLight ? "light" : "dark"}.png`}
-              alt=""
-            />
+            <span className="starlight-token-face starlight-token-light">
+              <img src="/assets/game-pieces/starlight-light.png" alt="" />
+            </span>
+            <span className="starlight-token-face starlight-token-dark">
+              <img src="/assets/game-pieces/starlight-dark.png" alt="" />
+            </span>
           </span>
         );
       })}

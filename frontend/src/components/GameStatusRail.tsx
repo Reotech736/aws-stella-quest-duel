@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { GameView } from "../api/types";
 import { colorLabel, phaseLabel } from "../game/presentation";
 import { AudioControls } from "./AudioControls";
@@ -20,6 +22,11 @@ export function GameStatusRail({
   blackStarHolderName,
   activityLog,
 }: GameStatusRailProps) {
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const visibleActivity = showAllActivity
+    ? activityLog.slice().reverse()
+    : activityLog.slice(-5).reverse();
+
   return (
     <aside className="status-rail" aria-labelledby="status-rail-title">
       <div>
@@ -63,10 +70,22 @@ export function GameStatusRail({
           <p>まだ記録はありません。</p>
         ) : (
           <ol>
-            {activityLog.slice(-5).reverse().map((entry, index) => (
+            {visibleActivity.map((entry, index) => (
               <li key={`${entry}-${index}`}>{entry}</li>
             ))}
           </ol>
+        )}
+        {activityLog.length > 5 && (
+          <button
+            type="button"
+            className="activity-toggle"
+            aria-expanded={showAllActivity}
+            onClick={() => setShowAllActivity((current) => !current)}
+          >
+            {showAllActivity
+              ? "最新5件だけ表示"
+              : `すべて表示（${activityLog.length}件）`}
+          </button>
         )}
       </section>
 

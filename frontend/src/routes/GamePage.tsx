@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api, ApiError } from "../api/client";
@@ -19,6 +20,21 @@ import {
 } from "../game/presentation";
 
 const autoEndTurnStorageKey = "stella-quest-duel.auto-end-turn";
+const dummyPresentationDuration = 780;
+
+type PlayedCard = GameView["playedCards"][number];
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => unknown;
+};
+
+function playedCardKey(played: PlayedCard, index: number): string {
+  return [
+    played.actor,
+    played.card.cardId ?? index,
+    played.card.color,
+    played.card.number ?? "",
+  ].join(":");
+}
 
 function loadAutoEndTurn(): boolean {
   return window.localStorage.getItem(autoEndTurnStorageKey) === "true";
@@ -145,18 +161,49 @@ export function GamePage() {
   const [transientMessage, setTransientMessage] = useState("");
   const [activityLog, setActivityLog] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(true);
+  const [presentedPlayedCards, setPresentedPlayedCards] = useState<PlayedCard[]>([]);
+  const [pendingDummyCard, setPendingDummyCard] = useState<PlayedCard | null>(null);
+  const gameRef = useRef<GameView | null>(null);
   const previousGameRef = useRef<GameView | null>(null);
+  const presentedCardsRef = useRef<PlayedCard[]>([]);
+  const presentedSignatureRef = useRef("");
+
+  const commitGame = useCallback((nextGame: GameView) => {
+    const current = gameRef.current;
+    if (current !== null && nextGame.version < current.version) return;
+    if (current?.version === nextGame.version) return;
+
+    const apply = () => {
+      if (current?.version !== nextGame.version) setSelectedCardId(null);
+      if (current === null) {
+        presentedCardsRef.current = nextGame.playedCards;
+        presentedSignatureRef.current = nextGame.playedCards
+          .map(playedCardKey)
+          .join("|");
+        setPresentedPlayedCards(nextGame.playedCards);
+      }
+      gameRef.current = nextGame;
+      setGame(nextGame);
+    };
+    const transitionDocument = document as ViewTransitionDocument;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (
+      current !== null &&
+      current.blackStarHolderPlayerId !== nextGame.blackStarHolderPlayerId &&
+      transitionDocument.startViewTransition !== undefined &&
+      !reduceMotion
+    ) {
+      transitionDocument.startViewTransition(() => flushSync(apply));
+      return;
+    }
+    apply();
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const token = await auth.accessToken();
       const response = await api.game(token, gameId);
-      setGame((current) => {
-        if (current?.version !== response.data.game.version) {
-          setSelectedCardId(null);
-        }
-        return response.data.game;
-      });
+      commitGame(response.data.game);
     } catch (cause) {
       setError(
         cause instanceof ApiError
@@ -164,7 +211,7 @@ export function GamePage() {
           : "ゲームを取得できませんでした。",
       );
     }
-  }, [auth, gameId]);
+  }, [auth, commitGame, gameId]);
 
   useEffect(() => {
     queueMicrotask(() => void refresh());
@@ -184,7 +231,7 @@ export function GamePage() {
         (message): message is string => message !== null,
       );
       if (transitionMessages.length > 0) {
-        setActivityLog((entries) => [...entries, ...transitionMessages].slice(-12));
+        setActivityLog((entries) => [...entries, ...transitionMessages].slice(-50));
         setTransientMessage(transitionMessages.join(" "));
       }
       if (
@@ -222,6 +269,41 @@ export function GamePage() {
     }
     previousGameRef.current = game;
   }, [audio, game]);
+
+  useEffect(() => {
+    if (game === null) return;
+    const nextCards = game.playedCards;
+    const nextSignature = nextCards.map(playedCardKey).join("|");
+    if (nextSignature === presentedSignatureRef.current) return;
+
+    const previousKeys = new Set(
+      presentedCardsRef.current.map(playedCardKey),
+    );
+    const newDummy = nextCards.find(
+      (played, index) =>
+        played.actor === "DUMMY" &&
+        !previousKeys.has(playedCardKey(played, index)),
+    );
+    presentedCardsRef.current = nextCards;
+    presentedSignatureRef.current = nextSignature;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (newDummy === undefined || reduceMotion) {
+      setPendingDummyCard(null);
+      setPresentedPlayedCards(nextCards);
+      return;
+    }
+
+    setPresentedPlayedCards(
+      nextCards.filter((played) => played !== newDummy),
+    );
+    setPendingDummyCard(newDummy);
+    const timer = window.setTimeout(() => {
+      setPendingDummyCard(null);
+      setPresentedPlayedCards(nextCards);
+    }, dummyPresentationDuration);
+    return () => window.clearTimeout(timer);
+  }, [game]);
 
   useEffect(() => {
     if (transientMessage === "") return;
@@ -282,10 +364,9 @@ export function GamePage() {
       }
       setNotice(messages.join(" "));
       if (messages.length > 0) {
-        setActivityLog((entries) => [...entries, ...messages].slice(-12));
+        setActivityLog((entries) => [...entries, ...messages].slice(-50));
       }
-      setSelectedCardId(null);
-      setGame(nextGame);
+      commitGame(nextGame);
       audio.playSfx("confirm");
     } catch (cause) {
       setError(
@@ -325,7 +406,7 @@ export function GamePage() {
     try {
       const token = await auth.accessToken();
       const response = await api.resign(token, game, createRequestId());
-      setGame(response.data.game);
+      commitGame(response.data.game);
     } catch (cause) {
       setError(
         cause instanceof ApiError ? cause.message : "投了できませんでした。",
@@ -352,6 +433,8 @@ export function GamePage() {
       ? "中央"
       : playerName(game, game.blackStarHolderPlayerId);
   const drawCount = Math.min(3, Math.max(0, 10 - (viewer?.handCount ?? 10)));
+  const visiblePlayedCards = presentedPlayedCards;
+  const presentationBusy = pendingDummyCard !== null;
 
   return (
     <main className="game-shell">
@@ -392,6 +475,10 @@ export function GamePage() {
                   <strong>{opponent.displayName}</strong>
                 </div>
                 <div className="player-markers">
+                  {game.currentActorPlayerId === opponent.playerId &&
+                    game.status === "IN_PROGRESS" && (
+                      <span className="active-turn-mark">手番</span>
+                    )}
                   {game.startPlayerId === opponent.playerId && (
                     <span className="start-player-mark">
                       スタートプレイヤー
@@ -403,6 +490,7 @@ export function GamePage() {
                       className="black-star-marker"
                       src="/assets/game-pieces/black-star.png"
                       alt="黒い星"
+                      data-black-star-position={opponent.playerId}
                     />
                   )}
                   <span>手札 {opponent.handCount}枚</span>
@@ -441,17 +529,29 @@ export function GamePage() {
               </section>
 
               <section className="trick-zone" aria-label="プレイされたカード">
+                {game.blackStarHolderPlayerId === null && (
+                  <div className="central-black-star" aria-label="黒い星は中央">
+                    <img
+                      className="central-black-star-marker"
+                      src="/assets/game-pieces/black-star.png"
+                      alt="黒い星"
+                      data-black-star-position="CENTER"
+                    />
+                    <small>中央</small>
+                  </div>
+                )}
                 <div className="played-cards">
-                  {game.playedCards.length === 0 && (
+                  {visiblePlayedCards.length === 0 && pendingDummyCard === null && (
                     <span className="empty-table">
                       まだカードはありません
                     </span>
                   )}
-                  {game.playedCards.map((played, index) => {
+                  {visiblePlayedCards.map((played, index) => {
                     const cardId = played.card.cardId;
                     const canSelect =
                       cardId !== undefined &&
-                      selectablePlayedCards.has(cardId);
+                      selectablePlayedCards.has(cardId) &&
+                      !presentationBusy;
                     return (
                       <div
                         key={`${played.actor}-${cardId ?? index}`}
@@ -466,11 +566,17 @@ export function GamePage() {
                               ? () => selectOrConfirm(cardId)
                               : undefined
                           }
-                          disabled={busy}
+                          disabled={busy || presentationBusy}
                         />
                       </div>
                     );
                   })}
+                  {pendingDummyCard !== null && (
+                    <div className="played-card-slot dummy-draw-slot" role="status">
+                      <small>ダミーが山札からプレイ</small>
+                      <GameCard card={pendingDummyCard.card} faceDown />
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -495,6 +601,10 @@ export function GamePage() {
                   <strong>{viewer.displayName}</strong>
                 </div>
                 <div className="player-markers">
+                  {game.currentActorPlayerId === viewer.playerId &&
+                    game.status === "IN_PROGRESS" && (
+                      <span className="active-turn-mark">手番</span>
+                    )}
                   {game.startPlayerId === viewer.playerId && (
                     <span className="start-player-mark">
                       スタートプレイヤー
@@ -506,6 +616,7 @@ export function GamePage() {
                       className="black-star-marker"
                       src="/assets/game-pieces/black-star.png"
                       alt="黒い星"
+                      data-black-star-position={viewer.playerId}
                     />
                   )}
                   <span>手札 {viewer.handCount}枚</span>
@@ -517,7 +628,8 @@ export function GamePage() {
                   const cardId = card.cardId;
                   const canSelect =
                     cardId !== undefined &&
-                    game.availableActions.playableCardIds.includes(cardId);
+                    game.availableActions.playableCardIds.includes(cardId) &&
+                    !presentationBusy;
                   return (
                     <GameCard
                       key={cardId ?? index}
@@ -528,7 +640,7 @@ export function GamePage() {
                           ? () => selectOrConfirm(cardId)
                           : undefined
                       }
-                      disabled={busy}
+                      disabled={busy || presentationBusy}
                     />
                   );
                 })}
@@ -546,7 +658,11 @@ export function GamePage() {
         </div>
       )}
 
-      <section className="action-dock" aria-label="操作" aria-busy={busy}>
+      <section
+        className="action-dock"
+        aria-label="操作"
+        aria-busy={busy || presentationBusy}
+      >
         {game.status === "IN_PROGRESS" && (
           <p className="dock-instruction" aria-live="polite">
             {instruction(game)}
@@ -558,7 +674,7 @@ export function GamePage() {
             <button
               type="button"
               className="primary-button"
-              disabled={busy}
+              disabled={busy || presentationBusy}
               onClick={() => void confirmSelection()}
             >
               {busy ? "確定中…" : confirmLabel(game)}
@@ -566,7 +682,7 @@ export function GamePage() {
             <button
               type="button"
               className="text-button"
-              disabled={busy}
+              disabled={busy || presentationBusy}
               onClick={() => setSelectedCardId(null)}
             >
               選び直す
@@ -577,7 +693,7 @@ export function GamePage() {
           <button
             type="button"
             className="secondary-button"
-            disabled={busy || !game.availableActions.canDrawCards}
+            disabled={busy || presentationBusy || !game.availableActions.canDrawCards}
             onClick={() => void command({ type: "DRAW_CARDS" })}
           >
             {busy ? "処理中…" : `星明りで${drawCount}枚引く`}
@@ -585,7 +701,7 @@ export function GamePage() {
           <button
             type="button"
             className={`primary-button ${game.availableActions.canEndTurn ? "end-turn-ready" : ""}`}
-            disabled={busy || !game.availableActions.canEndTurn}
+            disabled={busy || presentationBusy || !game.availableActions.canEndTurn}
             onClick={() => void command({ type: "END_TURN" })}
           >
             {busy ? "処理中…" : "手番終了"}
@@ -593,7 +709,7 @@ export function GamePage() {
           <button
             type="button"
             className="text-button danger"
-            disabled={busy || !game.availableActions.canResign}
+            disabled={busy || presentationBusy || !game.availableActions.canResign}
             onClick={() => void resign()}
           >
             投了
